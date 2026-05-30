@@ -29,6 +29,13 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    // Verificar que las variables de entorno estén disponibles
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      setError("Error de configuración: variables de entorno de Supabase no disponibles.");
+      setLoading(false);
+      return;
+    }
+
     const supabase = createClient();
 
     const { error: authError } = await supabase.auth.signInWithPassword({
