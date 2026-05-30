@@ -42,17 +42,23 @@ export default function LoginPage() {
       return;
     }
 
-    // Leer rol del perfil para redirigir al dashboard correcto
+    // Leer rol: primero desde metadatos del token (sin consulta DB), luego fallback a profiles
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("rol")
-      .eq("id", user?.id ?? "")
-      .single<{ rol: string }>();
+    const rolFromMeta = user?.user_metadata?.rol as string | undefined;
 
-    if (profile?.rol === "admin") {
+    let rol = rolFromMeta;
+    if (!rol) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("rol")
+        .eq("id", user?.id ?? "")
+        .single<{ rol: string }>();
+      rol = profile?.rol;
+    }
+
+    if (rol === "admin") {
       router.push("/admin");
-    } else if (profile?.rol === "profesor") {
+    } else if (rol === "profesor") {
       router.push("/profesor");
     } else {
       router.push("/");
