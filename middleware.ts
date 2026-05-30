@@ -2,16 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Sin credenciales configuradas, dejar pasar (dev sin DB)
+  if (!supabaseUrl || !supabaseKey) {
     return NextResponse.next({ request });
   }
 
-  let supabaseResponse = NextResponse.next({ request });
+  try {
+    let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -26,23 +28,26 @@ export async function middleware(request: NextRequest) {
           );
         },
       },
+    });
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const staffPaths = ["/admin", "/profesor"];
+    const isStaffOnly = staffPaths.some((p) =>
+      request.nextUrl.pathname.startsWith(p)
+    );
+
+    if (isStaffOnly && !user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
     }
-  );
 
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const staffPaths = ["/admin", "/profesor"];
-  const isStaffOnly = staffPaths.some((p) =>
-    request.nextUrl.pathname.startsWith(p)
-  );
-
-  if (isStaffOnly && !user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return supabaseResponse;
+  } catch {
+    // Si el middleware falla por cualquier razón, dejar pasar la request
+    return NextResponse.next({ request });
   }
-
-  return supabaseResponse;
 }
 
 export const config = {
