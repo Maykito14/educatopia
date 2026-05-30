@@ -1,8 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function proxy(request: NextRequest) {
-  // Sin credenciales de Supabase, saltear la protección de rutas (desarrollo sin DB)
+export async function middleware(request: NextRequest) {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return NextResponse.next({ request });
   }
@@ -32,7 +31,6 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Solo profesores y admins necesitan estar autenticados
   const staffPaths = ["/admin", "/profesor"];
   const isStaffOnly = staffPaths.some((p) =>
     request.nextUrl.pathname.startsWith(p)
