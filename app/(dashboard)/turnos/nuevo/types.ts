@@ -20,6 +20,7 @@ export interface FormData {
   nombreContacto: string;
   whatsapp: string;
   origen: Origen | "";
+  dni: string;
   comentarios: string;
   metodoPago: "transferencia" | "efectivo";
 }
@@ -38,6 +39,7 @@ export const FORM_INITIAL: FormData = {
   nombreContacto: "",
   whatsapp: "",
   origen: "",
+  dni: "",
   comentarios: "",
   metodoPago: "transferencia",
 };

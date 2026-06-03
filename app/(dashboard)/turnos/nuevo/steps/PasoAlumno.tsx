@@ -57,6 +57,17 @@ export default function PasoAlumno({ data, onChange, errors }: Props) {
         </Field>
       </div>
 
+      {/* DNI */}
+      <Field label="DNI del alumno" error={errors.dni}>
+        <input
+          type="text"
+          placeholder="Ej: 45123456"
+          value={data.dni}
+          onChange={(e) => onChange({ dni: e.target.value })}
+          className={errors.dni ? inputErrorClass : inputClass}
+        />
+      </Field>
+
       {/* Edad y Año/Grado en fila */}
       <div className="grid grid-cols-2 gap-3.5">
         <Field label="Edad" required error={errors.edad}>

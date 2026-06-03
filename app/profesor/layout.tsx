@@ -43,7 +43,8 @@ export default async function ProfesorLayout({ children }: { children: React.Rea
             { href: "/profesor/calendario",    label: "Calendario",      icon: "🗓️"  },
             { href: "/profesor/turnos",        label: "Mis Turnos",      icon: "📅" },
             { href: "/profesor/disponibilidad", label: "Disponibilidad",  icon: "⏰" },
-            { href: "/profesor/materias",      label: "Mis Materias",    icon: "📚" },
+            { href: "/profesor/materias",        label: "Mis Materias",    icon: "📚" },
+            { href: "/profesor/turnos-masivos", label: "Turnos Masivos",  icon: "⚡" },
             { href: "/profesor/liquidacion",   label: "Mi Liquidación",  icon: "💰" },
           ].map((item) => (
             <Link

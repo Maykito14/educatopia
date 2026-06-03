@@ -28,6 +28,7 @@ export async function submitTurno(
         telefono_contacto: formData.whatsapp || null,
         nombre_contacto:   formData.nombreContacto || null,
         origen:            (formData.origen as string) || null,
+        dni:               formData.dni || null,
       })
       .select("id")
       .single();

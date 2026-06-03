@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export type SlotGenerado = {
@@ -13,17 +14,35 @@ export type NuevoAlumnoData = {
   nivel_educativo: string; colegio: string; dni: string;
 };
 
+/** Obtiene el profesor_id del usuario autenticado */
+async function getMyProfesorId(): Promise<string | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const service = createServiceClient();
+  const { data } = await service
+    .from("profesores")
+    .select("id")
+    .eq("profile_id", user.id)
+    .single<{ id: string }>();
+  return data?.id ?? null;
+}
+
 async function _crearTurnos(
   supabase: ReturnType<typeof createServiceClient>,
   alumnoId: string,
   materia: string,
   anio: string,
   colegio: string,
-  slots: SlotGenerado[]
+  slots: SlotGenerado[],
+  profesorId: string
 ): Promise<{ creados: number; errores: number }> {
   let creados = 0; let errores = 0;
 
   for (const s of slots) {
+    // Seguridad: verificar que el slot pertenece al propio profesor
+    if (s.profesorId !== profesorId) { errores++; continue; }
+
     const { data: slot, error: slotErr } = await supabase
       .from("slots")
       .upsert(
@@ -42,34 +61,38 @@ async function _crearTurnos(
   return { creados, errores };
 }
 
-/** Crea turnos para un alumno ya existente */
-export async function crearTurnosMasivos(
+export async function crearTurnosMasivosProfesor(
   alumnoId: string, materia: string, anio: string, colegio: string,
   slots: SlotGenerado[]
-): Promise<{ creados: number; errores: number }> {
+): Promise<{ creados: number; errores: number; error?: string }> {
+  const profesorId = await getMyProfesorId();
+  if (!profesorId) return { creados: 0, errores: 0, error: "No autorizado" };
+
   const supabase = createServiceClient();
-  const result = await _crearTurnos(supabase, alumnoId, materia, anio, colegio, slots);
-  revalidatePath("/admin/turnos-masivos");
-  revalidatePath("/admin");
+  const result = await _crearTurnos(supabase, alumnoId, materia, anio, colegio, slots, profesorId);
+  revalidatePath("/profesor/turnos-masivos");
+  revalidatePath("/profesor");
   return result;
 }
 
-/** Crea un alumno nuevo y luego sus turnos */
-export async function crearAlumnoYTurnosMasivos(
+export async function crearAlumnoYTurnosMasivosProfesor(
   alumnoData: NuevoAlumnoData, materia: string, anio: string,
   slots: SlotGenerado[]
 ): Promise<{ creados: number; errores: number; error?: string }> {
+  const profesorId = await getMyProfesorId();
+  if (!profesorId) return { creados: 0, errores: 0, error: "No autorizado" };
+
   const supabase = createServiceClient();
 
   const { data: alumno, error: alumnoErr } = await supabase
     .from("alumnos")
     .insert({
-      nombre:           alumnoData.nombre.trim(),
-      apellido:         alumnoData.apellido.trim(),
-      edad:             alumnoData.edad ? parseInt(alumnoData.edad) : null,
-      nivel_educativo:  alumnoData.nivel_educativo || null,
-      colegio:          alumnoData.colegio.trim() || null,
-      dni:              alumnoData.dni.trim() || null,
+      nombre:          alumnoData.nombre.trim(),
+      apellido:        alumnoData.apellido.trim(),
+      edad:            alumnoData.edad ? parseInt(alumnoData.edad) : null,
+      nivel_educativo: alumnoData.nivel_educativo || null,
+      colegio:         alumnoData.colegio.trim() || null,
+      dni:             alumnoData.dni.trim() || null,
     })
     .select("id")
     .single<{ id: string }>();
@@ -78,8 +101,8 @@ export async function crearAlumnoYTurnosMasivos(
     return { creados: 0, errores: 0, error: alumnoErr?.message ?? "Error al crear alumno" };
   }
 
-  const result = await _crearTurnos(supabase, alumno.id, materia, anio, alumnoData.colegio, slots);
-  revalidatePath("/admin/turnos-masivos");
-  revalidatePath("/admin");
+  const result = await _crearTurnos(supabase, alumno.id, materia, anio, alumnoData.colegio, slots, profesorId);
+  revalidatePath("/profesor/turnos-masivos");
+  revalidatePath("/profesor");
   return result;
 }

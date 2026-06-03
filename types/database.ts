@@ -30,6 +30,7 @@ export interface Alumno {
   telefono_contacto: string | null;
   nombre_contacto: string | null;
   origen: string | null;
+  dni: string | null;
   created_at: string;
 }
 
