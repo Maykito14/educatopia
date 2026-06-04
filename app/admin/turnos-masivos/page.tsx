@@ -13,7 +13,8 @@ export default async function TurnosMasivosPage() {
       .from("profesores")
       .select(`
         id, nombre,
-        disponibilidad:profesores_disponibilidad(dia_semana, hora_inicio, hora_fin, activo)
+        disponibilidad:profesores_disponibilidad(dia_semana, hora_inicio, hora_fin, activo),
+        materias_join:profesores_materias(materia:materias(nombre))
       `)
       .eq("activo", true)
       .order("nombre"),
@@ -34,7 +35,7 @@ export default async function TurnosMasivosPage() {
       </div>
       <TurnosMasivosClient
         alumnos={(alumnosRes.data ?? []) as Parameters<typeof TurnosMasivosClient>[0]["alumnos"]}
-        profesores={(profesoresRes.data ?? []) as Parameters<typeof TurnosMasivosClient>[0]["profesores"]}
+        profesores={(profesoresRes.data ?? []) as unknown as Parameters<typeof TurnosMasivosClient>[0]["profesores"]}
         colegios={(colegiosRes.data ?? []).map((c: { nombre: string }) => c.nombre)}
       />
     </div>

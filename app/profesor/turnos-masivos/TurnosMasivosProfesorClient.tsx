@@ -53,10 +53,11 @@ function slotKey(s: SlotGenerado) { return `${s.fecha}|${s.hora_inicio}|${s.dura
 const inputCls = "w-full px-3 py-2 rounded-xl border-2 border-[#e5e7eb] text-sm font-semibold text-[#374151] focus:border-[#7c3aed] outline-none bg-white";
 
 export default function TurnosMasivosProfesorClient({
-  profesorId, disponibilidad, alumnos, colegios,
+  profesorId, disponibilidad, materias, alumnos, colegios,
 }: {
   profesorId:    string;
   disponibilidad: Disponibilidad[];
+  materias:      string[];
   alumnos:       AlumnoExist[];
   colegios:      string[];
 }) {
@@ -204,8 +205,15 @@ export default function TurnosMasivosProfesorClient({
           </div>
           <div>
             <label className="block text-xs font-extrabold text-[#374151] mb-1">Materia</label>
-            <input type="text" placeholder="Ej: Matemática" value={materia}
-              onChange={e=>setMateria(e.target.value)} className={inputCls}/>
+            <select
+              value={materia}
+              onChange={e => setMateria(e.target.value)}
+              disabled={materias.length === 0}
+              className={inputCls}
+            >
+              <option value="">— Seleccioná una materia —</option>
+              {materias.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-extrabold text-[#374151] mb-1">Año / Grado</label>

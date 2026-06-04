@@ -9,7 +9,11 @@ import {
 } from "./actions";
 
 type Disponibilidad = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
-type ProfesorDisp   = { id: string; nombre: string; disponibilidad: Disponibilidad[] };
+type ProfesorDisp   = {
+  id: string; nombre: string;
+  disponibilidad: Disponibilidad[];
+  materias_join: { materia: { nombre: string } | null }[];
+};
 type AlumnoExist    = { id: string; nombre: string; apellido: string; nivel_educativo: string | null; colegio: string | null };
 
 const DIAS_FULL    = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
@@ -84,8 +88,12 @@ export default function TurnosMasivosClient({
   const selectedSlots = slots.filter(s => selSlots.has(slotKey(s)));
   const horasSeleccionadas = selectedSlots.reduce((acc,s) => acc + s.duracion_minutos/60, 0);
 
-  const alumnoActual = alumnos.find(a => a.id === alumnoId);
-  const profesor     = profesores.find(p => p.id === profId);
+  const alumnoActual  = alumnos.find(a => a.id === alumnoId);
+  const profesor      = profesores.find(p => p.id === profId);
+  const materiasProf  = (profesor?.materias_join ?? [])
+    .map(mj => mj.materia?.nombre)
+    .filter((n): n is string => !!n)
+    .sort();
 
   // Colegio a usar según modo
   const colegioParaTurno = modoAlumno === "nuevo"
@@ -256,7 +264,7 @@ export default function TurnosMasivosClient({
         <div className="border-t border-[#f3f4f6] pt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-extrabold text-[#374151] mb-1">Profesor</label>
-            <select value={profId} onChange={e=>{setProfId(e.target.value);setGenerated(false);}} className={inputCls}>
+            <select value={profId} onChange={e=>{setProfId(e.target.value);setGenerated(false);setMateria("");}} className={inputCls}>
               {profesores.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </div>
@@ -266,7 +274,15 @@ export default function TurnosMasivosClient({
           </div>
           <div>
             <label className="block text-xs font-extrabold text-[#374151] mb-1">Materia</label>
-            <input type="text" placeholder="Ej: Matemática" value={materia} onChange={e=>setMateria(e.target.value)} className={inputCls}/>
+            <select
+              value={materia}
+              onChange={e => setMateria(e.target.value)}
+              disabled={materiasProf.length === 0}
+              className={inputCls}
+            >
+              <option value="">— Seleccioná una materia —</option>
+              {materiasProf.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-extrabold text-[#374151] mb-1">Año / Grado</label>
