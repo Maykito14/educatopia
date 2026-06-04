@@ -55,7 +55,9 @@ function validate(step: number, data: FormData): Errors {
   }
 
   if (step === 2) {
-    if (!data.materia)  e.materia  = "Seleccioná una materia.";
+    // Materia es obligatoria solo si NO es taller
+    if (data.nivelEducativo !== "taller" && !data.materia)
+      e.materia = "Seleccioná una materia.";
     if (!data.objetivo) e.objetivo = "Seleccioná el objetivo.";
   }
 

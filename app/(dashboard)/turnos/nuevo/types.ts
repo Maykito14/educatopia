@@ -1,5 +1,12 @@
 export type NivelEducativo = "primario" | "secundario" | "terciario" | "taller";
-export type Objetivo = "Rendir examen" | "Mejorar notas" | "Apoyo continuo" | "Ingreso universitario";
+export type Objetivo =
+  | "Rendir examen"
+  | "Mejorar notas"
+  | "Apoyo continuo"
+  | "Ingreso universitario"
+  | "Aprender algo nuevo"
+  | "Interiorizarme sobre este tema"
+  | "Realizar un taller por gusto/ocio";
 export type Origen = "Instagram" | "Facebook" | "Recomendación" | "Pasé por ahí" | "WhatsApp" | "Otro";
 
 export interface FormData {
