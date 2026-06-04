@@ -133,13 +133,18 @@ const INTERVALO = 30; // minutos entre inicios de turno
 
 export function buildSlotsFromProfesores(profesores: ProfesorMock[]): MockSlot[] {
   const slots: MockSlot[] = [];
-  const today = new Date();
+  const now   = new Date();
+  const today = new Date(now);
   today.setHours(0, 0, 0, 0);
 
-  for (let i = 1; i <= 14; i++) {
+  // Minutos actuales + 30 min de margen mínimo para reservar en el día de hoy
+  const nowMinutes = now.getHours() * 60 + now.getMinutes() + 30;
+
+  for (let i = 0; i <= 14; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
-    const dow = date.getDay();
+    const dow     = date.getDay();
+    const isToday = i === 0;
     const dateStr = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
     for (const prof of profesores) {
@@ -148,6 +153,9 @@ export function buildSlotsFromProfesores(profesores: ProfesorMock[]): MockSlot[]
         const windowEnd   = timeToMin(avail.hora_fin);
 
         for (let start = windowStart; start < windowEnd; start += INTERVALO) {
+          // Para el día de hoy, descartar slots cuyo inicio ya pasó o está a menos de 30 min
+          if (isToday && start < nowMinutes) continue;
+
           for (const dur of DURACIONES) {
             const end = start + dur;
             if (end > windowEnd) continue;

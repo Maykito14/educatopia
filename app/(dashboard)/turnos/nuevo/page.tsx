@@ -15,27 +15,68 @@ import { submitTurno } from "@/app/actions/submit-turno";
 
 type Errors = Partial<Record<keyof FormData, string>>;
 
+const SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
+
 function validate(step: number, data: FormData): Errors {
   const e: Errors = {};
+
   if (step === 1) {
-    if (!data.nombre.trim())    e.nombre    = "Ingresá el nombre del alumno.";
-    if (!data.apellido.trim())  e.apellido  = "Ingresá el apellido del alumno.";
-    if (!data.edad)             e.edad      = "Ingresá la edad.";
-    if (!data.colegio)          e.colegio   = "Seleccioná el colegio.";
+    // DNI — obligatorio, solo números, mínimo 6 dígitos
+    if (!data.dni.trim())
+      e.dni = "Ingresá el DNI del alumno.";
+    else if (!/^\d+$/.test(data.dni.trim()))
+      e.dni = "El DNI solo puede contener números.";
+    else if (data.dni.trim().length < 6)
+      e.dni = "El DNI debe tener al menos 6 dígitos.";
+
+    // Nombre y apellido — obligatorios, solo letras
+    if (!data.nombre.trim())
+      e.nombre = "Ingresá el nombre del alumno.";
+    else if (!SOLO_LETRAS.test(data.nombre.trim()))
+      e.nombre = "El nombre solo puede contener letras.";
+
+    if (!data.apellido.trim())
+      e.apellido = "Ingresá el apellido del alumno.";
+    else if (!SOLO_LETRAS.test(data.apellido.trim()))
+      e.apellido = "El apellido solo puede contener letras.";
+
+    // Edad — obligatoria, número entre 4 y 80
+    if (!data.edad)
+      e.edad = "Ingresá la edad.";
+    else if (isNaN(Number(data.edad)) || Number(data.edad) < 4 || Number(data.edad) > 80)
+      e.edad = "La edad debe ser un número entre 4 y 80.";
+
+    // Año/Grado — obligatorio
+    if (!data.anioGrado.trim())
+      e.anioGrado = "Ingresá el año o grado.";
+
+    if (!data.colegio)          e.colegio        = "Seleccioná el colegio.";
     if (!data.nivelEducativo)   e.nivelEducativo = "Seleccioná el nivel educativo.";
   }
+
   if (step === 2) {
     if (!data.materia)  e.materia  = "Seleccioná una materia.";
     if (!data.objetivo) e.objetivo = "Seleccioná el objetivo.";
   }
+
   if (step === 3) {
     if (!data.slotId) e.slotId = "Seleccioná un turno disponible.";
   }
+
   if (step === 4) {
-    if (!data.nombreContacto.trim()) e.nombreContacto = "Ingresá el nombre del responsable.";
-    if (!data.whatsapp.trim())       e.whatsapp       = "Ingresá un número de WhatsApp.";
-    if (!data.origen)                e.origen         = "Seleccioná cómo nos conociste.";
+    if (!data.nombreContacto.trim())
+      e.nombreContacto = "Ingresá el nombre del responsable.";
+    else if (!SOLO_LETRAS.test(data.nombreContacto.trim()))
+      e.nombreContacto = "El nombre solo puede contener letras.";
+
+    if (!data.whatsapp.trim())
+      e.whatsapp = "Ingresá un número de WhatsApp.";
+    else if (!/^\d[\d\s-]{7,}$/.test(data.whatsapp.trim()))
+      e.whatsapp = "Ingresá un número válido (solo dígitos).";
+
+    if (!data.origen) e.origen = "Seleccioná cómo nos conociste.";
   }
+
   return e;
 }
 

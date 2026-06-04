@@ -21,6 +21,7 @@ export interface FormData {
   whatsapp: string;
   origen: Origen | "";
   dni: string;
+  alumnoExistenteId: string;   // ID si el DNI ya existe en la BD
   comentarios: string;
   metodoPago: "transferencia" | "efectivo";
 }
@@ -40,6 +41,7 @@ export const FORM_INITIAL: FormData = {
   whatsapp: "",
   origen: "",
   dni: "",
+  alumnoExistenteId: "",
   comentarios: "",
   metodoPago: "transferencia",
 };

@@ -15,25 +15,31 @@ export async function submitTurno(
   try {
     const supabase = createServiceClient();
 
-    // 1 — Crear registro del alumno
-    const { data: alumno, error: alumnoErr } = await supabase
-      .from("alumnos")
-      .insert({
-        nombre:            formData.nombre,
-        apellido:          formData.apellido,
-        edad:              formData.edad ? parseInt(formData.edad) : null,
-        nivel_educativo:   (formData.nivelEducativo as string) || null,
-        anio_grado:        formData.anioGrado || null,
-        colegio:           formData.colegio,
-        telefono_contacto: formData.whatsapp || null,
-        nombre_contacto:   formData.nombreContacto || null,
-        origen:            (formData.origen as string) || null,
-        dni:               formData.dni || null,
-      })
-      .select("id")
-      .single();
+    // 1 — Alumno: reusar existente (por DNI) o crear nuevo
+    let alumnoId: string;
 
-    if (alumnoErr) return { success: false, error: alumnoErr.message };
+    if (formData.alumnoExistenteId) {
+      alumnoId = formData.alumnoExistenteId;
+    } else {
+      const { data: alumno, error: alumnoErr } = await supabase
+        .from("alumnos")
+        .insert({
+          nombre:            formData.nombre,
+          apellido:          formData.apellido,
+          edad:              formData.edad ? parseInt(formData.edad) : null,
+          nivel_educativo:   (formData.nivelEducativo as string) || null,
+          anio_grado:        formData.anioGrado || null,
+          colegio:           formData.colegio,
+          telefono_contacto: formData.whatsapp || null,
+          nombre_contacto:   formData.nombreContacto || null,
+          origen:            (formData.origen as string) || null,
+          dni:               formData.dni || null,
+        })
+        .select("id")
+        .single();
+      if (alumnoErr) return { success: false, error: alumnoErr.message };
+      alumnoId = alumno.id;
+    }
 
     // 2 — Upsert del slot (crea si no existe, devuelve el existente si ya fue reservado)
     const { data: dbSlot, error: slotErr } = await supabase
@@ -63,7 +69,7 @@ export async function submitTurno(
       .from("turnos")
       .insert({
         slot_id:      dbSlot.id,
-        alumno_id:    alumno.id,
+        alumno_id:    alumnoId,
         materia:      formData.materia,
         anio:         formData.anioGrado || "",
         colegio:      formData.colegio,
