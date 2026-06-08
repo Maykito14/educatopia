@@ -9,6 +9,8 @@ export type Objetivo =
   | "Realizar un taller por gusto/ocio";
 export type Origen = "Instagram" | "Facebook" | "Recomendación" | "Pasé por ahí" | "WhatsApp" | "Otro";
 
+export type TipoPedido = "suelto" | "pack_semanal" | "pack_mensual";
+
 export interface FormData {
   // Paso 1 — alumno
   nombre: string;
@@ -20,9 +22,11 @@ export interface FormData {
   // Paso 2 — estudio
   materia: string;
   objetivo: Objetivo | "";
+  tipoPedido: TipoPedido;   // suelto | pack_semanal | pack_mensual
   // Paso 3 — slot
   profesorId: string;
-  slotId: string;
+  slotId: string;           // turno suelto
+  slotIds: string[];        // pack (múltiples slots)
   // Paso 4 — contacto
   nombreContacto: string;
   whatsapp: string;
@@ -42,8 +46,10 @@ export const FORM_INITIAL: FormData = {
   colegio: "",
   materia: "",
   objetivo: "",
+  tipoPedido: "suelto",
   profesorId: "",
   slotId: "",
+  slotIds: [],
   nombreContacto: "",
   whatsapp: "",
   origen: "",

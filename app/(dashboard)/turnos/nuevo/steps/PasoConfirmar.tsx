@@ -28,12 +28,17 @@ const NIVEL_LABEL: Record<string, string> = {
 
 export default function PasoConfirmar({ data, onChange }: Props) {
   const { getSlot, getProfesor, getValorHora } = useTurnosData();
-  const slot    = getSlot(data.slotId);
+  const esPack   = data.tipoPedido !== "suelto";
+  const slot     = esPack ? null : getSlot(data.slotId);
+  const packSlots = esPack ? data.slotIds.map(id => getSlot(id)).filter(Boolean) : [];
   const profesor = getProfesor(data.profesorId);
 
   const valorHora = getValorHora(data.nivelEducativo);
-  const monto     = slot ? (slot.duracion_minutos / 60) * valorHora : 0;
+  const monto     = esPack
+    ? packSlots.reduce((acc, s) => acc + (s!.duracion_minutos / 60) * valorHora, 0)
+    : slot ? (slot.duracion_minutos / 60) * valorHora : 0;
   const alias     = getAlias(data.nivelEducativo, profesor?.nombre ?? "");
+  const tieneSlot = esPack ? packSlots.length > 0 : !!slot;
 
   return (
     <div>
@@ -59,8 +64,8 @@ export default function PasoConfirmar({ data, onChange }: Props) {
         <Row icon="🎯" label="Objetivo" value={data.objetivo} />
       </div>
 
-      {/* Turno */}
-      {slot && profesor && (
+      {/* Turno suelto */}
+      {!esPack && slot && profesor && (
         <div className="bg-[#fef3c7] rounded-2xl p-5 mb-4">
           <p className="text-xs font-extrabold text-[#d97706] uppercase tracking-wide mb-3">Turno seleccionado</p>
           <Row icon="👨‍🏫" label="Profesor" value={profesor.nombre} />
@@ -69,8 +74,29 @@ export default function PasoConfirmar({ data, onChange }: Props) {
         </div>
       )}
 
+      {/* Pack — lista de turnos */}
+      {esPack && packSlots.length > 0 && profesor && (
+        <div className="bg-[#fef3c7] rounded-2xl p-5 mb-4">
+          <p className="text-xs font-extrabold text-[#d97706] uppercase tracking-wide mb-1">
+            {data.tipoPedido === "pack_semanal" ? "📅 Pack semanal" : "📆 Pack mensual"}
+          </p>
+          <p className="text-xs font-bold text-[#6b7280] mb-3">
+            Profesor: <strong className="text-[#374151]">{profesor.nombre}</strong> · {packSlots.length} turno{packSlots.length !== 1 ? "s" : ""}
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {packSlots.map((s, i) => (
+              <div key={i} className="flex items-center justify-between text-sm bg-white rounded-xl px-3 py-2">
+                <span className="font-bold text-[#374151]">{formatFecha(s!.fecha)}</span>
+                <span className="font-extrabold text-[#7c3aed]">{s!.hora_inicio} — {s!.hora_fin}</span>
+                <span className="text-xs font-semibold text-[#9ca3af]">{s!.duracion_minutos} min</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Pago — siempre visible si hay precio */}
-      {valorHora > 0 && slot && (
+      {valorHora > 0 && tieneSlot && (
         <div className="bg-[#d1fae5] rounded-2xl p-5 mb-4 border border-[#a7f3d0]">
           <p className="text-xs font-extrabold text-[#059669] uppercase tracking-wide mb-3">💳 Información de pago</p>
           <div className="flex items-center justify-between mb-4">

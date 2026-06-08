@@ -4,7 +4,7 @@ import Field from "../components/Field";
 import Chip, { OptionCard } from "../components/Chip";
 import { MATERIA_ICONS } from "../mock-data";
 import { useTurnosData } from "../data-context";
-import type { FormData, NivelEducativo, Objetivo } from "../types";
+import type { FormData, NivelEducativo, Objetivo, TipoPedido } from "../types";
 
 interface Props {
   data: FormData;
@@ -110,6 +110,38 @@ export default function PasoEstudio({ data, onChange, errors }: Props) {
           ))}
         </div>
       </Field>
+
+      {/* Tipo de pedido — solo para primario y secundario */}
+      {(nivel === "primario" || nivel === "secundario") && (
+        <Field label="Tipo de turno">
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                { value: "suelto"       as TipoPedido, icon: "1️⃣", label: "Turno suelto" },
+                ...(nivel === "primario"
+                  ? [{ value: "pack_semanal" as TipoPedido, icon: "📅", label: "Pack semanal — 1 semana (mín. 6 hs)" }]
+                  : []),
+                { value: "pack_mensual" as TipoPedido, icon: "📆", label: "Pack mensual — 2 semanas (mín. 6 hs)" },
+              ]
+            ).map((opt) => (
+              <OptionCard
+                key={opt.value}
+                icon={opt.icon}
+                label={opt.label}
+                selected={data.tipoPedido === opt.value}
+                onClick={() =>
+                  onChange({ tipoPedido: opt.value, slotId: "", slotIds: [], profesorId: "" })
+                }
+              />
+            ))}
+          </div>
+          {data.tipoPedido !== "suelto" && (
+            <p className="text-xs font-semibold text-[#7c3aed] mt-2">
+              📌 En el siguiente paso podrás elegir múltiples turnos. Mínimo 6 horas en total.
+            </p>
+          )}
+        </Field>
+      )}
     </div>
   );
 }

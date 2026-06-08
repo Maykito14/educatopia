@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/service";
+import { sendTurnoConfirmado } from "@/lib/whatsapp";
 
 export type SlotGenerado = {
   profesorId: string; fecha: string;
@@ -19,7 +20,8 @@ async function _crearTurnos(
   materia: string,
   anio: string,
   colegio: string,
-  slots: SlotGenerado[]
+  slots: SlotGenerado[],
+  tienePack: boolean
 ): Promise<{ creados: number; errores: number }> {
   let creados = 0; let errores = 0;
 
@@ -35,20 +37,41 @@ async function _crearTurnos(
 
     const { error: turnoErr } = await supabase.from("turnos").insert({
       slot_id: slot.id, alumno_id: alumnoId, materia, anio, colegio,
-      estado: "pendiente", confirmado_por_profesor: false,
+      estado: "confirmado",
+      confirmado_por_profesor: false,
     });
     turnoErr ? errores++ : creados++;
   }
   return { creados, errores };
 }
 
+async function notificarTurnos(
+  supabase: ReturnType<typeof createServiceClient>,
+  alumnoId: string,
+  creados: number
+) {
+  if (creados === 0) return;
+  const { data: alumno } = await supabase
+    .from("alumnos")
+    .select("telefono_contacto, nombre_contacto")
+    .eq("id", alumnoId)
+    .single<{ telefono_contacto: string | null; nombre_contacto: string | null }>();
+  if (!alumno?.telefono_contacto) return;
+  await sendTurnoConfirmado({
+    phone:          alumno.telefono_contacto,
+    nombreContacto: alumno.nombre_contacto ?? "responsable",
+    detalle:        creados === 1 ? "próximamente" : `${creados} turnos confirmados`,
+  });
+}
+
 /** Crea turnos para un alumno ya existente */
 export async function crearTurnosMasivos(
   alumnoId: string, materia: string, anio: string, colegio: string,
-  slots: SlotGenerado[]
+  slots: SlotGenerado[], tienePack: boolean
 ): Promise<{ creados: number; errores: number }> {
   const supabase = createServiceClient();
-  const result = await _crearTurnos(supabase, alumnoId, materia, anio, colegio, slots);
+  const result = await _crearTurnos(supabase, alumnoId, materia, anio, colegio, slots, tienePack);
+  await notificarTurnos(supabase, alumnoId, result.creados);
   revalidatePath("/admin/turnos-masivos");
   revalidatePath("/admin");
   return result;
@@ -57,7 +80,7 @@ export async function crearTurnosMasivos(
 /** Crea un alumno nuevo y luego sus turnos */
 export async function crearAlumnoYTurnosMasivos(
   alumnoData: NuevoAlumnoData, materia: string, anio: string,
-  slots: SlotGenerado[]
+  slots: SlotGenerado[], tienePack: boolean
 ): Promise<{ creados: number; errores: number; error?: string }> {
   const supabase = createServiceClient();
 
@@ -78,7 +101,8 @@ export async function crearAlumnoYTurnosMasivos(
     return { creados: 0, errores: 0, error: alumnoErr?.message ?? "Error al crear alumno" };
   }
 
-  const result = await _crearTurnos(supabase, alumno.id, materia, anio, alumnoData.colegio, slots);
+  const result = await _crearTurnos(supabase, alumno.id, materia, anio, alumnoData.colegio, slots, tienePack);
+  await notificarTurnos(supabase, alumno.id, result.creados);
   revalidatePath("/admin/turnos-masivos");
   revalidatePath("/admin");
   return result;

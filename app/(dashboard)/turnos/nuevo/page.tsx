@@ -16,8 +16,9 @@ import { submitTurno } from "@/app/actions/submit-turno";
 type Errors = Partial<Record<keyof FormData, string>>;
 
 const SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
+const MIN_MINUTOS_PACK = 360; // 6 horas
 
-function validate(step: number, data: FormData): Errors {
+function validate(step: number, data: FormData, packMinutos = 0): Errors {
   const e: Errors = {};
 
   if (step === 1) {
@@ -62,7 +63,14 @@ function validate(step: number, data: FormData): Errors {
   }
 
   if (step === 3) {
-    if (!data.slotId) e.slotId = "Seleccioná un turno disponible.";
+    if (data.tipoPedido === "suelto") {
+      if (!data.slotId) e.slotId = "Seleccioná un turno disponible.";
+    } else {
+      if (data.slotIds.length === 0)
+        e.slotId = "Seleccioná al menos un turno para el pack.";
+      else if (packMinutos < MIN_MINUTOS_PACK)
+        e.slotId = `Necesitás al menos 6 horas en total. Llevas ${(packMinutos / 60).toFixed(1)} hs seleccionadas.`;
+    }
   }
 
   if (step === 4) {
@@ -91,7 +99,7 @@ export default function NuevoTurnoPage() {
 }
 
 function NuevoTurnoForm() {
-  const { getSlotsPorProfesor, getProfesor, getSlot, refreshOcupacion } = useTurnosData();
+  const { getProfesor, getSlot, refreshOcupacion } = useTurnosData();
   const [step, setStep] = useState(1);
   const [data, setData] = useState<FormData>(FORM_INITIAL);
   const [errors, setErrors] = useState<Errors>({});
@@ -111,7 +119,12 @@ function NuevoTurnoForm() {
   }
 
   function next() {
-    const errs = validate(step, data);
+    // Calcular minutos totales para pack (necesario para validar step 3)
+    const packMinutos = data.slotIds.reduce((acc, id) => {
+      const s = getSlot(id);
+      return acc + (s?.duracion_minutos ?? 0);
+    }, 0);
+    const errs = validate(step, data, packMinutos);
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -131,14 +144,19 @@ function NuevoTurnoForm() {
     setSubmitError("");
     setSubmitLoading(true);
 
-    const slot = getSlot(data.slotId);
-    if (!slot) {
-      setSubmitError("No se encontró el turno seleccionado. Volvé al paso 3.");
+    // Resolver slots según el tipo de pedido
+    const esPack = data.tipoPedido !== "suelto";
+    const slots = esPack
+      ? data.slotIds.map(id => getSlot(id)).filter((s): s is NonNullable<ReturnType<typeof getSlot>> => s != null)
+      : [getSlot(data.slotId)].filter((s): s is NonNullable<ReturnType<typeof getSlot>> => s != null);
+
+    if (slots.length === 0) {
+      setSubmitError("No se encontraron los turnos seleccionados. Volvé al paso 3.");
       setSubmitLoading(false);
       return;
     }
 
-    const result = await submitTurno(data, slot);
+    const result = await submitTurno(data, slots);
 
     if (!result.success) {
       setSubmitError(result.error);
@@ -146,15 +164,19 @@ function NuevoTurnoForm() {
       return;
     }
 
-    // Actualizar ocupación para que otros vean el turno tomado
+    // Actualizar ocupación para que otros vean los turnos tomados
     await refreshOcupacion();
     setSubmitted(true);
     setSubmitLoading(false);
   }
 
   if (submitted) {
-    const slot = getSlot(data.slotId);
-    const prof = getProfesor(data.profesorId);
+    const esPack = data.tipoPedido !== "suelto";
+    const slot   = esPack ? null : getSlot(data.slotId);
+    const prof   = getProfesor(data.profesorId);
+    const packSlots = esPack
+      ? data.slotIds.map(id => getSlot(id)).filter((s): s is NonNullable<ReturnType<typeof getSlot>> => s != null)
+      : [];
     return (
       <PantallaExito
         data={data}
@@ -162,6 +184,7 @@ function NuevoTurnoForm() {
         slotHora={slot ? `${slot.hora_inicio} — ${slot.hora_fin}` : ""}
         profesorNombre={prof?.nombre ?? ""}
         metodoPago={data.metodoPago}
+        packSlots={packSlots.map(s => ({ fecha: formatFecha(s.fecha), hora: `${s.hora_inicio} — ${s.hora_fin}` }))}
       />
     );
   }
@@ -265,16 +288,21 @@ function PantallaExito({
   slotHora,
   profesorNombre,
   metodoPago,
+  packSlots,
 }: {
   data: FormData;
   slotFecha: string;
   slotHora: string;
   profesorNombre: string;
   metodoPago: "transferencia" | "efectivo";
+  packSlots: { fecha: string; hora: string }[];
 }) {
-  const waTexto = metodoPago === "efectivo"
-    ? `Hola! Acabo de solicitar un turno en Educatopía para ${data.nombre} ${data.apellido} 📚\nQuiero abonar el turno en efectivo.`
-    : `Hola! Acabo de solicitar un turno en Educatopía para ${data.nombre} ${data.apellido} 📚\nTe envío el comprobante de la transferencia.`;
+  const esPack = data.tipoPedido !== "suelto";
+  const waTexto = esPack
+    ? `Hola! Acabo de solicitar un pack de ${packSlots.length} turnos en Educatopía para ${data.nombre} ${data.apellido} 📚\n${metodoPago === "efectivo" ? "Quiero abonar en efectivo." : "Te envío el comprobante de la transferencia."}`
+    : metodoPago === "efectivo"
+      ? `Hola! Acabo de solicitar un turno en Educatopía para ${data.nombre} ${data.apellido} 📚\nQuiero abonar el turno en efectivo.`
+      : `Hola! Acabo de solicitar un turno en Educatopía para ${data.nombre} ${data.apellido} 📚\nTe envío el comprobante de la transferencia.`;
   return (
     <div className="max-w-[600px] mx-auto px-4 py-5">
       <div
@@ -282,7 +310,9 @@ function PantallaExito({
         style={{ boxShadow: "0 4px 20px rgba(124,58,237,0.1)" }}
       >
         <div className="text-[80px] mb-4 animate-bounce">🎉</div>
-        <h2 className="text-2xl font-black text-[#1e1b4b] mb-2">¡Turno solicitado!</h2>
+        <h2 className="text-2xl font-black text-[#1e1b4b] mb-2">
+          {esPack ? "¡Pack solicitado!" : "¡Turno solicitado!"}
+        </h2>
         <p className="text-sm text-[#6b7280] font-semibold leading-relaxed mb-6">
           Gracias por confiar en <strong>Educatopía</strong>. Nos ponemos en contacto
           a la brevedad para confirmar los detalles. 💜
@@ -292,9 +322,13 @@ function PantallaExito({
           {[
             { label: "Alumno",   value: `${data.nombre} ${data.apellido}` },
             { label: "Materia",  value: data.materia },
-            { label: "Profesor",  value: profesorNombre },
-            { label: "Fecha",    value: slotFecha },
-            { label: "Horario",  value: slotHora },
+            { label: "Profesor", value: profesorNombre },
+            ...(!esPack ? [
+              { label: "Fecha",    value: slotFecha },
+              { label: "Horario",  value: slotHora },
+            ] : [
+              { label: "Pack",     value: `${packSlots.length} turno${packSlots.length !== 1 ? "s" : ""}` },
+            ]),
             { label: "Contacto", value: data.nombreContacto },
             { label: "WhatsApp", value: data.whatsapp },
           ].map(({ label, value }) => (
@@ -303,6 +337,17 @@ function PantallaExito({
               <span className="font-extrabold text-[#7c3aed]">{value}</span>
             </div>
           ))}
+          {/* Lista de fechas del pack */}
+          {esPack && packSlots.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1">
+              {packSlots.map((s, i) => (
+                <div key={i} className="flex justify-between text-xs bg-white rounded-lg px-3 py-1.5">
+                  <span className="font-semibold text-[#374151]">{s.fecha}</span>
+                  <span className="font-bold text-[#7c3aed]">{s.hora}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {metodoPago === "transferencia" && (

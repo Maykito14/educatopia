@@ -8,7 +8,7 @@ const PX_POR_MIN = 1.2;
 const GRID_H     = (HORA_FIN - HORA_INI) * 60 * PX_POR_MIN;
 
 const DIAS_SEMANA = ["Lun","Mar","Mié","Jue","Vie","Sáb"];
-const PROF_COLORS = ["#7c3aed","#059669","#d97706","#2563eb","#dc2626","#0891b2","#9333ea"];
+const PROF_COLORS = ["#7c3aed","#059669","#d97706","#2563eb","#dc2626","#0891b2","#9333ea","#be185d","#0369a1","#15803d"];
 
 function pad(n: number) { return String(n).padStart(2,"0"); }
 function toKey(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
@@ -24,6 +24,7 @@ function heightPx(d: number) { return Math.max(d*PX_POR_MIN, 28); }
 export type TurnoAdmin = {
   id: string; materia: string; anio: string; colegio: string;
   confirmado_por_profesor: boolean; asistio: boolean | null; estado: string;
+  profesorId: string | null;
   slot: { fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number };
   alumno: { nombre: string; apellido: string } | null;
   profesor: { nombre: string } | null;
@@ -68,8 +69,29 @@ function TurnoCard({ t, dayIdx, profColor }: { t: TurnoAdmin; dayIdx: number; pr
   );
 }
 
-export default function CalendarioAdminClient({ turnos, profesores }: { turnos: TurnoAdmin[]; profesores: { id: string; nombre: string }[] }) {
+export default function CalendarioAdminClient({
+  turnos,
+  profesores: profesoresProp,
+}: {
+  turnos: TurnoAdmin[];
+  profesores: { id: string; nombre: string }[];
+}) {
   const [weekStart, setWeekStart] = useState(() => getMon(new Date()));
+  const [filtroProfId, setFiltroProfId] = useState<string | null>(null);
+
+  // Derivar profesores desde los turnos como fuente de verdad,
+  // complementado con la lista del servidor para el orden/nombre
+  const profFromTurnos = new Map<string, string>();
+  for (const t of turnos) {
+    if (t.profesorId && t.profesor?.nombre && !profFromTurnos.has(t.profesorId)) {
+      profFromTurnos.set(t.profesorId, t.profesor.nombre);
+    }
+  }
+  const profesores = profesoresProp.length > 0
+    ? profesoresProp
+    : Array.from(profFromTurnos.entries())
+        .map(([id, nombre]) => ({ id, nombre }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   const profColorMap: Record<string,string> = {};
   profesores.forEach((p,i) => { profColorMap[p.id] = PROF_COLORS[i % PROF_COLORS.length]; });
@@ -78,7 +100,11 @@ export default function CalendarioAdminClient({ turnos, profesores }: { turnos: 
   const weekDays = Array.from({length:6},(_,i)=>{ const d=new Date(weekStart); d.setDate(weekStart.getDate()+i); return d; });
   const todayKey = toKey(new Date());
 
-  const weekTurnos = turnos.filter(t => {
+  const turnosFiltrados = filtroProfId
+    ? turnos.filter(t => t.profesorId === filtroProfId)
+    : turnos;
+
+  const weekTurnos = turnosFiltrados.filter(t => {
     const f = new Date(t.slot.fecha+"T00:00:00");
     return f >= weekStart && f <= weekEnd;
   });
@@ -87,19 +113,73 @@ export default function CalendarioAdminClient({ turnos, profesores }: { turnos: 
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden" style={{boxShadow:"0 2px 16px rgba(124,58,237,0.08)"}}>
-      {/* Cabecera */}
+      {/* Cabecera navegación */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5e7eb]">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={()=>{ const d=new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d); }} className="p-1.5 rounded-lg hover:bg-[#f3f4f6] text-[#6b7280] font-black">‹</button>
-          <button type="button" onClick={()=>{ const d=new Date(weekStart); d.setDate(d.getDate()+7); setWeekStart(d); }} className="p-1.5 rounded-lg hover:bg-[#f3f4f6] text-[#6b7280] font-black">›</button>
+          <button
+            type="button"
+            onClick={()=>{ const d=new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d); }}
+            className="p-1.5 rounded-lg hover:bg-[#f3f4f6] text-[#6b7280] font-black text-lg leading-none"
+          >‹</button>
+          <button
+            type="button"
+            onClick={()=>{ const d=new Date(weekStart); d.setDate(d.getDate()+7); setWeekStart(d); }}
+            className="p-1.5 rounded-lg hover:bg-[#f3f4f6] text-[#6b7280] font-black text-lg leading-none"
+          >›</button>
           <span className="text-sm font-extrabold text-[#1e1b4b] ml-1">
             {weekStart.toLocaleDateString("es-AR",{day:"numeric",month:"long"})} – {weekEnd.toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-[#9ca3af] font-semibold hidden sm:inline">{weekTurnos.length} turno{weekTurnos.length!==1?"s":""}</span>
-          <button type="button" onClick={()=>setWeekStart(getMon(new Date()))} className="px-3 py-1.5 rounded-lg border border-[#e5e7eb] text-xs font-extrabold text-[#6b7280] hover:bg-[#f3f4f6]">Hoy</button>
+          <span className="text-xs text-[#9ca3af] font-semibold hidden sm:inline">
+            {weekTurnos.length} turno{weekTurnos.length!==1?"s":""}
+            {filtroProfId && <span className="text-[#7c3aed]"> · filtrado</span>}
+          </span>
+          <button
+            type="button"
+            onClick={()=>setWeekStart(getMon(new Date()))}
+            className="px-3 py-1.5 rounded-lg border border-[#e5e7eb] text-xs font-extrabold text-[#6b7280] hover:bg-[#f3f4f6]"
+          >Hoy</button>
         </div>
+      </div>
+
+      {/* Filtro por profesor */}
+      <div className="px-4 py-2.5 border-b border-[#ede9fe] bg-[#faf5ff] flex flex-wrap gap-1.5 items-center">
+        <span className="text-[10px] font-extrabold text-[#7c3aed] uppercase tracking-wide mr-1">Filtrar:</span>
+        <button
+          type="button"
+          onClick={() => setFiltroProfId(null)}
+          className={`px-3 py-1 rounded-xl text-xs font-black transition-colors ${
+            filtroProfId === null
+              ? "bg-[#1e1b4b] text-white"
+              : "bg-[#f3f4f6] text-[#6b7280] hover:bg-[#e5e7eb]"
+          }`}
+        >
+          Todos los profesores
+        </button>
+        {profesores.map((p, i) => {
+          const color = PROF_COLORS[i % PROF_COLORS.length];
+          const activo = filtroProfId === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setFiltroProfId(activo ? null : p.id)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-black transition-colors border-2"
+              style={{
+                borderColor: activo ? color : "transparent",
+                backgroundColor: activo ? color+"18" : "#f3f4f6",
+                color: activo ? color : "#374151",
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full flex-shrink-0 inline-block"
+                style={{ backgroundColor: color }}
+              />
+              {p.nombre}
+            </button>
+          );
+        })}
       </div>
 
       <div className="overflow-x-auto">
@@ -138,10 +218,19 @@ export default function CalendarioAdminClient({ turnos, profesores }: { turnos: 
                   {isHoy && (()=>{
                     const now=new Date(); const m=(now.getHours()*60+now.getMinutes())-HORA_INI*60;
                     if(m<0||m>(HORA_FIN-HORA_INI)*60) return null;
-                    return <div className="absolute left-0 right-0 border-t-2 border-[#7c3aed] z-10" style={{top:m*PX_POR_MIN}}><div className="w-2 h-2 rounded-full bg-[#7c3aed] -mt-1 -ml-1"/></div>;
+                    return (
+                      <div className="absolute left-0 right-0 border-t-2 border-[#7c3aed] z-10" style={{top:m*PX_POR_MIN}}>
+                        <div className="w-2 h-2 rounded-full bg-[#7c3aed] -mt-1 -ml-1"/>
+                      </div>
+                    );
                   })()}
                   {dayTurnos.map(t=>(
-                    <TurnoCard key={t.id} t={t} dayIdx={dayIdx} profColor={profColorMap[t.slot?.fecha ? (profesores.find(p=> weekTurnos.filter(wt=>wt.slot.fecha===key).some(wt2=>wt2.id===t.id && wt2.profesor?.nombre===p.nombre))?.id ?? "") : ""] ?? PROF_COLORS[0]} />
+                    <TurnoCard
+                      key={t.id}
+                      t={t}
+                      dayIdx={dayIdx}
+                      profColor={profColorMap[t.profesorId ?? ""] ?? PROF_COLORS[0]}
+                    />
                   ))}
                 </div>
               );
@@ -150,20 +239,14 @@ export default function CalendarioAdminClient({ turnos, profesores }: { turnos: 
         </div>
       </div>
 
-      {/* Leyenda profesores */}
-      <div className="px-4 py-3 border-t border-[#f3f4f6] flex flex-wrap gap-3">
-        {profesores.map((p,i)=>(
-          <span key={p.id} className="flex items-center gap-1.5 text-xs font-extrabold text-[#374151]">
-            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{backgroundColor:PROF_COLORS[i%PROF_COLORS.length]}}/>
-            {p.nombre}
-          </span>
-        ))}
-      </div>
-
-      {weekTurnos.length===0 && (
+      {weekTurnos.length === 0 && (
         <div className="py-12 text-center text-[#9ca3af]">
           <p className="text-3xl mb-2">📭</p>
-          <p className="font-bold text-sm">Sin turnos confirmados esta semana.</p>
+          <p className="font-bold text-sm">
+            {filtroProfId
+              ? `Sin turnos para ${profesores.find(p=>p.id===filtroProfId)?.nombre ?? "este profesor"} esta semana.`
+              : "Sin turnos esta semana."}
+          </p>
         </div>
       )}
     </div>

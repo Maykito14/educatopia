@@ -18,10 +18,10 @@ export default async function MisTurnosPage() {
   const { data: turnos } = await supabase
     .from("turnos")
     .select(`
-      id, materia, anio, colegio, objetivo, notas, estado,
+      id, alumno_id, materia, anio, colegio, objetivo, notas, estado,
       confirmado_por_profesor, asistio, pagado, cobrado, medio_cobro,
-      slot:slots(fecha, hora_inicio, hora_fin, duracion_minutos),
-      alumno:alumnos(nombre, apellido, nivel_educativo, anio_grado, nombre_contacto, telefono_contacto)
+      slot:slots(id, fecha, hora_inicio, hora_fin, duracion_minutos, profesor_id),
+      alumno:alumnos(nombre, apellido, edad, nivel_educativo, anio_grado, colegio, nombre_contacto, telefono_contacto)
     `)
     .neq("estado", "cancelado")
     .order("created_at", { ascending: false });

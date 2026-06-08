@@ -75,6 +75,10 @@ export default function TurnosMasivosClient({
   const [anio, setAnio]           = useState("");
   const [semana, setSemana]       = useState(() => getMon(new Date()).toISOString().slice(0,10));
 
+  // ── Pack ─────────────────────────────────────────────────────
+  const [tienePack, setTienePack] = useState(false);
+  const [tipoPack, setTipoPack]   = useState<"semanal"|"mensual">("mensual");
+
   // ── Slots ────────────────────────────────────────────────────
   const [slots, setSlots]         = useState<SlotGenerado[]>([]);
   const [selSlots, setSelSlots]   = useState<Set<string>>(new Set());
@@ -104,10 +108,11 @@ export default function TurnosMasivosClient({
   function generar() {
     if (!profesor) return;
     const desde = new Date(semana+"T00:00:00");
-    const hasta = new Date(desde); hasta.setDate(desde.getDate()+6);
+    const diasRango = tienePack && tipoPack === "mensual" ? 13 : tienePack && tipoPack === "semanal" ? 6 : 6;
+    const hasta = new Date(desde); hasta.setDate(desde.getDate()+diasRango);
     const ss = generarSlots(profesor, desde, hasta);
     setSlots(ss);
-    setSelSlots(new Set());   // ← todos sin marcar por defecto
+    setSelSlots(new Set());
     setGenerated(true);
     setResult(null);
   }
@@ -130,6 +135,7 @@ export default function TurnosMasivosClient({
 
   function puedeCrear() {
     if (selectedSlots.length === 0 || !materia || !anio || pending) return false;
+    if (tienePack && horasSeleccionadas < 6) return false;
     if (modoAlumno === "existente") return !!alumnoId;
     return !!(nuevoAlumno.nombre.trim() && nuevoAlumno.apellido.trim());
   }
@@ -138,9 +144,9 @@ export default function TurnosMasivosClient({
     startTrans(async () => {
       let r: { creados: number; errores: number; error?: string };
       if (modoAlumno === "existente") {
-        r = await crearTurnosMasivos(alumnoId, materia, anio, colegioParaTurno, selectedSlots);
+        r = await crearTurnosMasivos(alumnoId, materia, anio, colegioParaTurno, selectedSlots, tienePack);
       } else {
-        r = await crearAlumnoYTurnosMasivos(nuevoAlumno, materia, anio, selectedSlots);
+        r = await crearAlumnoYTurnosMasivos(nuevoAlumno, materia, anio, selectedSlots, tienePack);
       }
       setResult(r);
       if (!r.error) setGenerated(false);
@@ -290,6 +296,42 @@ export default function TurnosMasivosClient({
           </div>
         </div>
 
+        {/* Pack */}
+        <div className="border-t border-[#f3f4f6] pt-4 flex flex-col gap-3">
+          <label className="flex items-center gap-3 cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={tienePack}
+              onChange={e => { setTienePack(e.target.checked); setGenerated(false); }}
+              className="w-4 h-4 accent-[#7c3aed]"
+            />
+            <span className="text-sm font-extrabold text-[#374151]">¿Tiene pack?</span>
+          </label>
+          {tienePack && (
+            <div className="flex gap-3">
+              {(["semanal","mensual"] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => { setTipoPack(t); setGenerated(false); }}
+                  className={`px-4 py-2 rounded-xl text-sm font-black border-2 transition-colors ${
+                    tipoPack === t
+                      ? "border-[#7c3aed] bg-[#ede9fe] text-[#7c3aed]"
+                      : "border-[#e5e7eb] text-[#9ca3af] hover:border-[#c4b5fd]"
+                  }`}
+                >
+                  {t === "semanal" ? "📅 Semanal (1 semana)" : "📆 Mensual (2 semanas)"}
+                </button>
+              ))}
+            </div>
+          )}
+          {tienePack && (
+            <p className="text-xs font-semibold text-[#7c3aed]">
+              Pack requiere mínimo 6 horas. Los turnos se crearán como <strong>confirmados</strong>.
+            </p>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={generar}
@@ -338,8 +380,12 @@ export default function TurnosMasivosClient({
                 </div>
                 <div className="w-px h-8 bg-[#e5e7eb]"/>
                 <div>
-                  <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase">Horas totales</p>
-                  <p className="text-xl font-black text-[#1e1b4b]">{horasSeleccionadas.toFixed(1)} hs</p>
+                  <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase">
+                    Horas totales{tienePack ? " (mín. 6)" : ""}
+                  </p>
+                  <p className={`text-xl font-black ${tienePack && horasSeleccionadas >= 6 ? "text-[#059669]" : "text-[#1e1b4b]"}`}>
+                    {horasSeleccionadas.toFixed(1)} hs
+                  </p>
                 </div>
               </div>
 

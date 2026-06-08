@@ -5,15 +5,19 @@ import type { FormData } from "@/app/(dashboard)/turnos/nuevo/types";
 import type { MockSlot } from "@/app/(dashboard)/turnos/nuevo/types";
 
 export type SubmitResult =
-  | { success: true; turnoId: string }
+  | { success: true; turnoId: string; creados: number }
   | { success: false; error: string };
+
+type SlotInput = Pick<MockSlot, "profesorId" | "fecha" | "hora_inicio" | "hora_fin" | "duracion_minutos" | "capacidad_max">;
 
 export async function submitTurno(
   formData: FormData,
-  slot: Pick<MockSlot, "profesorId" | "fecha" | "hora_inicio" | "hora_fin" | "duracion_minutos" | "capacidad_max">
+  slots: SlotInput[]
 ): Promise<SubmitResult> {
   try {
     const supabase = createServiceClient();
+
+    if (slots.length === 0) return { success: false, error: "No se seleccionaron turnos." };
 
     // 1 — Alumno: reusar existente (por DNI) o crear nuevo
     let alumnoId: string;
@@ -41,49 +45,56 @@ export async function submitTurno(
       alumnoId = alumno.id;
     }
 
-    // 2 — Upsert del slot (crea si no existe, devuelve el existente si ya fue reservado)
-    const { data: dbSlot, error: slotErr } = await supabase
-      .from("slots")
-      .upsert(
-        {
-          profesor_id:      slot.profesorId,
-          fecha:            slot.fecha,
-          hora_inicio:      slot.hora_inicio,
-          hora_fin:         slot.hora_fin,
-          duracion_minutos: slot.duracion_minutos,
-          capacidad_max:    slot.capacidad_max,
-          estado:           "disponible",
-        },
-        { onConflict: "profesor_id,fecha,hora_inicio,duracion_minutos" }
-      )
-      .select("id, estado, capacidad_max")
-      .single();
+    // 2 — Por cada slot: upsert + crear turno
+    let primerTurnoId = "";
+    let creados = 0;
 
-    if (slotErr) return { success: false, error: slotErr.message };
-    if (dbSlot.estado === "lleno") {
-      return { success: false, error: "Este turno ya no tiene lugares disponibles." };
+    for (const slot of slots) {
+      const { data: dbSlot, error: slotErr } = await supabase
+        .from("slots")
+        .upsert(
+          {
+            profesor_id:      slot.profesorId,
+            fecha:            slot.fecha,
+            hora_inicio:      slot.hora_inicio,
+            hora_fin:         slot.hora_fin,
+            duracion_minutos: slot.duracion_minutos,
+            capacidad_max:    slot.capacidad_max,
+            estado:           "disponible",
+          },
+          { onConflict: "profesor_id,fecha,hora_inicio,duracion_minutos" }
+        )
+        .select("id, estado")
+        .single();
+
+      if (slotErr || !dbSlot) continue;
+      if (dbSlot.estado === "lleno") continue;
+
+      const { data: turno, error: turnoErr } = await supabase
+        .from("turnos")
+        .insert({
+          slot_id:      dbSlot.id,
+          alumno_id:    alumnoId,
+          materia:      formData.materia,
+          anio:         formData.anioGrado || "",
+          colegio:      formData.colegio,
+          objetivo:     (formData.objetivo as string) || null,
+          estado:       "pendiente",
+          notas:        formData.comentarios || null,
+          medio_cobro:  formData.metodoPago ?? "transferencia",
+        })
+        .select("id")
+        .single();
+
+      if (!turnoErr && turno) {
+        if (!primerTurnoId) primerTurnoId = turno.id;
+        creados++;
+      }
     }
 
-    // 3 — Crear el turno
-    const { data: turno, error: turnoErr } = await supabase
-      .from("turnos")
-      .insert({
-        slot_id:      dbSlot.id,
-        alumno_id:    alumnoId,
-        materia:      formData.materia,
-        anio:         formData.anioGrado || "",
-        colegio:      formData.colegio,
-        objetivo:     (formData.objetivo as string) || null,
-        estado:       "pendiente",
-        notas:        formData.comentarios || null,
-        medio_cobro:  formData.metodoPago ?? "transferencia",
-      })
-      .select("id")
-      .single();
+    if (creados === 0) return { success: false, error: "No se pudo crear ningún turno. Puede que los turnos seleccionados ya no estén disponibles." };
 
-    if (turnoErr) return { success: false, error: turnoErr.message };
-
-    return { success: true, turnoId: turno.id };
+    return { success: true, turnoId: primerTurnoId, creados };
   } catch (err) {
     return { success: false, error: String(err) };
   }
