@@ -22,11 +22,16 @@ function tieneGrupo(slot: MockSlot, data: FormData) {
 }
 
 export default function PasoSlot({ data, onChange, errors }: Props) {
-  const { loading, getProfesoresPorMateriaYNivel, getSlotsPorProfesor, getSlot, getValorHora } = useTurnosData();
+  const { loading, getMateriasPorNivel, getProfesoresPorMateriaYNivel, getProfesoresPorNivel, getSlotsPorProfesor, getSlot, getValorHora } = useTurnosData();
 
   const esPack      = data.tipoPedido !== "suelto";
   const diasRango   = data.tipoPedido === "pack_semanal" ? 7 : 28;
   const minHorasPack = data.tipoPedido === "pack_semanal" ? 3 : 12;
+
+  // "Otras": materia libre que no está en el catálogo → mostrar todos los profes del nivel
+  const nivel = data.nivelEducativo as NivelEducativo | "";
+  const materiasDelNivel = nivel ? getMateriasPorNivel(nivel as NivelEducativo) : [];
+  const esOtras = !!data.materia && !!nivel && !materiasDelNivel.includes(data.materia);
 
   // Precio estimado para el slot seleccionado (suelto)
   const selectedSlot = data.slotId ? getSlot(data.slotId) : null;
@@ -79,8 +84,10 @@ export default function PasoSlot({ data, onChange, errors }: Props) {
   }
 
   const profesores =
-    data.materia && data.nivelEducativo
-      ? getProfesoresPorMateriaYNivel(data.materia, data.nivelEducativo as NivelEducativo)
+    data.materia && nivel
+      ? esOtras
+        ? getProfesoresPorNivel(nivel as NivelEducativo)
+        : getProfesoresPorMateriaYNivel(data.materia, nivel as NivelEducativo)
       : [];
 
   if (loading) {

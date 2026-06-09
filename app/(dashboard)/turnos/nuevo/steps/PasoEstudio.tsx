@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Field from "../components/Field";
 import Chip, { OptionCard } from "../components/Chip";
 import { MATERIA_ICONS } from "../mock-data";
@@ -34,6 +35,11 @@ export default function PasoEstudio({ data, onChange, errors }: Props) {
   const esTaller = nivel === "taller";
   const materias = nivel && !esTaller ? getMateriasPorNivel(nivel) : [];
 
+  const soportaOtras = nivel === "secundario" || nivel === "terciario";
+  const [usandoOtras, setUsandoOtras] = useState<boolean>(
+    () => soportaOtras && !!data.materia && !materias.includes(data.materia)
+  );
+
   // Objetivos según nivel
   const objetivos = esTaller
     ? OBJETIVOS_TALLER
@@ -42,7 +48,13 @@ export default function PasoEstudio({ data, onChange, errors }: Props) {
       : [...OBJETIVOS_ESTANDAR, OBJETIVO_INGRESO];  // secundario/terciario: todos
 
   function selectMateria(mat: string) {
-    onChange({ materia: data.materia === mat ? "" : mat, profesorId: "", slotId: "" });
+    setUsandoOtras(false);
+    onChange({ materia: data.materia === mat ? "" : mat, profesorId: "", slotId: "", slotIds: [] });
+  }
+
+  function selectOtras() {
+    setUsandoOtras(true);
+    onChange({ materia: "", profesorId: "", slotId: "", slotIds: [] });
   }
 
   // Si cambia el objetivo, limpiar si no está en la lista del nivel actual
@@ -62,7 +74,7 @@ export default function PasoEstudio({ data, onChange, errors }: Props) {
       {/* Materia — solo para niveles que no son taller */}
       {!esTaller && (
         <Field label="Materia" required error={errors.materia}>
-          {materias.length === 0 ? (
+          {materias.length === 0 && !soportaOtras ? (
             <div className="bg-[#fef3c7] rounded-xl px-4 py-3 text-sm font-bold text-[#d97706]">
               ⚠️ Volvé al paso anterior y seleccioná el nivel educativo para ver las materias disponibles.
             </div>
@@ -73,13 +85,39 @@ export default function PasoEstudio({ data, onChange, errors }: Props) {
                   <Chip
                     key={m}
                     label={`${MATERIA_ICONS[m] ?? "📘"} ${m}`}
-                    selected={data.materia === m}
+                    selected={!usandoOtras && data.materia === m}
                     onClick={() => selectMateria(m)}
                     variant="purple"
                   />
                 ))}
+                {soportaOtras && (
+                  <Chip
+                    key="__otras__"
+                    label="✏️ Otra materia"
+                    selected={usandoOtras}
+                    onClick={selectOtras}
+                    variant="purple"
+                  />
+                )}
               </div>
-              {data.materia && (
+              {usandoOtras && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    placeholder="Escribí la materia…"
+                    value={data.materia}
+                    autoFocus
+                    onChange={e => onChange({ materia: e.target.value, profesorId: "", slotId: "", slotIds: [] })}
+                    className="w-full px-3 py-2 rounded-xl border-2 border-[#c4b5fd] text-sm font-semibold focus:border-[#7c3aed] outline-none bg-white"
+                  />
+                </div>
+              )}
+              {!usandoOtras && data.materia && (
+                <p className="text-sm font-bold text-[#10b981] mt-2">
+                  ✓ <strong>{data.materia}</strong> seleccionada
+                </p>
+              )}
+              {usandoOtras && data.materia && (
                 <p className="text-sm font-bold text-[#10b981] mt-2">
                   ✓ <strong>{data.materia}</strong> seleccionada
                 </p>

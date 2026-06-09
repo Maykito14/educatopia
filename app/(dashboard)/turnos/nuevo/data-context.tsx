@@ -73,6 +73,7 @@ interface TurnosDataCtx {
   precios: PrecioNivel[];
   getMateriasPorNivel:          (nivel: NivelEducativo) => string[];
   getProfesoresPorMateriaYNivel: (materia: string, nivel: NivelEducativo) => ProfesorMock[];
+  getProfesoresPorNivel:         (nivel: NivelEducativo) => ProfesorMock[];
   getSlotsPorProfesor:          (profesorId: string) => MockSlot[];
   getProfesor:                  (id: string) => ProfesorMock | undefined;
   getSlot:                      (slotId: string) => MockSlot | undefined;
@@ -242,6 +243,16 @@ export function TurnosDataProvider({ children }: { children: ReactNode }) {
       },
       getProfesoresPorMateriaYNivel: (materia, nivel) =>
         materiaMap.get(materia)?.get(nivel) ?? [],
+      getProfesoresPorNivel: (nivel) => {
+        const result: ProfesorMock[] = [];
+        const seen = new Set<string>();
+        for (const nivelMap of materiaMap.values()) {
+          for (const p of nivelMap.get(nivel) ?? []) {
+            if (!seen.has(p.id)) { seen.add(p.id); result.push(p); }
+          }
+        }
+        return result.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+      },
       getSlotsPorProfesor: (profesorId) =>
         allSlots.filter(
           (s) =>
