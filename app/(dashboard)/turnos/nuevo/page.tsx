@@ -16,7 +16,6 @@ import { submitTurno } from "@/app/actions/submit-turno";
 type Errors = Partial<Record<keyof FormData, string>>;
 
 const SOLO_LETRAS = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/;
-const MIN_MINUTOS_PACK = 360; // 6 horas
 
 function validate(step: number, data: FormData, packMinutos = 0): Errors {
   const e: Errors = {};
@@ -68,8 +67,12 @@ function validate(step: number, data: FormData, packMinutos = 0): Errors {
     } else {
       if (data.slotIds.length === 0)
         e.slotId = "Seleccioná al menos un turno para el pack.";
-      else if (packMinutos < MIN_MINUTOS_PACK)
-        e.slotId = `Necesitás al menos 6 horas en total. Llevas ${(packMinutos / 60).toFixed(1)} hs seleccionadas.`;
+      else {
+        const minMin = data.tipoPedido === "pack_semanal" ? 180 : 720;
+        const minHs  = data.tipoPedido === "pack_semanal" ? 3   : 12;
+        if (packMinutos < minMin)
+          e.slotId = `Necesitás al menos ${minHs} horas en total. Llevás ${(packMinutos / 60).toFixed(1)} hs seleccionadas.`;
+      }
     }
   }
 

@@ -5,15 +5,23 @@ import { actualizarTurno, obtenerSlotsDisponiblesAdmin, reprogramarTurnoAdmin } 
 import type { SlotDisponible } from "./actions";
 
 type TurnoEdit = {
-  id: string; materia: string; anio: string; colegio: string; estado: string;
+  id: string; created_at: string | null; materia: string; anio: string; colegio: string; estado: string;
   confirmado_por_profesor: boolean; asistio: boolean | null;
   pagado: boolean; cobrado: boolean;
   medio_cobro: "efectivo" | "transferencia" | null;
+  creador: { nombre: string; rol: string } | null;
   slot: { id: string; fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number; profesor_id: string } | null;
   alumno: { nombre: string; apellido: string; nivel_educativo: string | null } | null;
 };
 
 const ESTADOS = ["pendiente","confirmado","cancelado","completado"];
+
+function pad(n: number) { return String(n).padStart(2, "0"); }
+function getMon(d: Date) {
+  const m = new Date(d); m.setHours(0, 0, 0, 0);
+  m.setDate(m.getDate() - ((m.getDay() + 6) % 7));
+  return m;
+}
 
 function Toggle({ label, value, onChange, disabled }: { label: string; value: boolean | null; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
@@ -35,6 +43,19 @@ function formatFechaSlot(fecha: string, hora: string) {
   const diasSemana = ["dom","lun","mar","mié","jue","vie","sáb"];
   const dia = diasSemana[new Date(`${fecha}T00:00:00`).getDay()];
   return `${dia} ${d}/${m}/${y} · ${hora.slice(0, 5)}`;
+}
+
+function formatCreatedAt(iso: string | null) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function labelCreador(creador: { nombre: string; rol: string } | null) {
+  if (!creador) return "Turno Web";
+  if (creador.rol === "profesor") return creador.nombre;
+  if (creador.rol === "admin")    return `${creador.nombre} (admin)`;
+  return "Turno Web";
 }
 
 function agruparPorFecha(slots: SlotDisponible[]) {
@@ -245,6 +266,13 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
             <option value="efectivo">💵 Efectivo</option>
           </select>
         </td>
+        {/* Registrado */}
+        <td className="px-3 py-2.5 text-[11px] text-[#9ca3af] font-semibold whitespace-nowrap">
+          <span className="block">{formatCreatedAt(t.created_at)}</span>
+          <span className={`block font-extrabold mt-0.5 ${t.creador ? "text-[#7c3aed]" : "text-[#9ca3af]"}`}>
+            {labelCreador(t.creador)}
+          </span>
+        </td>
         {/* Reprogramar */}
         <td className="px-3 py-2.5">
           {t.slot && (
@@ -264,7 +292,7 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
       </tr>
       {showReprogramar && t.slot && (
         <tr className="bg-[#faf5ff] border-b border-[#e5e7eb]">
-          <td colSpan={9} className="px-4 py-3">
+          <td colSpan={10} className="px-4 py-3">
             <ReprogramarPanel
               turnoId={t.id}
               profesorId={t.slot.profesor_id}
@@ -284,10 +312,28 @@ export default function TurnosAdminClient({
   const [filtroProf, setFiltroProf] = useState("todos");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [search, setSearch] = useState("");
+  const [weekStart, setWeekStart] = useState(() => getMon(new Date()));
 
-  const filtrados = turnos.filter(t => {
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+
+  // Ordenar por fecha de slot DESC
+  const ordenados = [...turnos].sort((a, b) => {
+    const fa = a.slot?.fecha ?? ""; const fb = b.slot?.fecha ?? "";
+    if (fa !== fb) return fb.localeCompare(fa);
+    const ha = a.slot?.hora_inicio ?? ""; const hb = b.slot?.hora_inicio ?? "";
+    return hb.localeCompare(ha);
+  });
+
+  const filtrados = ordenados.filter(t => {
     if (filtroProf !== "todos" && t.slot?.profesor_id !== filtroProf) return false;
     if (filtroEstado !== "todos" && t.estado !== filtroEstado) return false;
+    // Filtro de semana
+    if (t.slot) {
+      const f = new Date(t.slot.fecha + "T00:00:00");
+      if (f < weekStart || f > weekEnd) return false;
+    } else {
+      return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       return (t.alumno?.nombre+" "+t.alumno?.apellido).toLowerCase().includes(q) || t.materia.toLowerCase().includes(q);
@@ -314,16 +360,38 @@ export default function TurnosAdminClient({
         <span className="text-xs text-[#9ca3af] font-semibold self-center">{filtrados.length} turno{filtrados.length!==1?"s":""}</span>
       </div>
 
+      {/* Segmentador de semana */}
+      <div className="bg-white rounded-2xl px-4 py-3 flex items-center gap-3" style={{boxShadow:"0 2px 12px rgba(124,58,237,0.07)"}}>
+        <button
+          type="button"
+          onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate()-7); setWeekStart(d); }}
+          className="p-1.5 rounded-lg hover:bg-[#f3f4f6] text-[#6b7280] font-black text-lg leading-none"
+        >‹</button>
+        <button
+          type="button"
+          onClick={() => { const d = new Date(weekStart); d.setDate(d.getDate()+7); setWeekStart(d); }}
+          className="p-1.5 rounded-lg hover:bg-[#f3f4f6] text-[#6b7280] font-black text-lg leading-none"
+        >›</button>
+        <span className="text-sm font-extrabold text-[#1e1b4b]">
+          {weekStart.toLocaleDateString("es-AR",{day:"numeric",month:"long"})} – {weekEnd.toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})}
+        </span>
+        <button
+          type="button"
+          onClick={() => setWeekStart(getMon(new Date()))}
+          className="ml-auto px-3 py-1.5 rounded-lg border border-[#e5e7eb] text-xs font-extrabold text-[#6b7280] hover:bg-[#f3f4f6]"
+        >Hoy</button>
+      </div>
+
       {/* Tabla */}
       <div className="bg-white rounded-2xl overflow-hidden" style={{boxShadow:"0 2px 12px rgba(124,58,237,0.07)"}}>
         {filtrados.length === 0 ? (
           <div className="py-12 text-center text-[#9ca3af] font-bold">Sin turnos que coincidan con los filtros.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[1000px]">
+            <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-[#f3f4f6]">
-                  {["Fecha","Alumno","Profesor","Materia","Estado","Duración","Controles","Cobro",""].map(h=>(
+                  {["Fecha","Alumno","Profesor","Materia","Estado","Duración","Controles","Cobro","Registrado",""].map(h=>(
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-extrabold text-[#9ca3af] uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>

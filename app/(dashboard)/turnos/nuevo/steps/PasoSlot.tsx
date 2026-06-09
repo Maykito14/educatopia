@@ -5,8 +5,6 @@ import { formatFecha } from "../mock-data";
 import { useTurnosData, fmtPesos } from "../data-context";
 import type { FormData, MockSlot, NivelEducativo } from "../types";
 
-const MIN_HORAS_PACK = 6;
-
 interface Props {
   data: FormData;
   onChange: (patch: Partial<FormData>) => void;
@@ -26,8 +24,9 @@ function tieneGrupo(slot: MockSlot, data: FormData) {
 export default function PasoSlot({ data, onChange, errors }: Props) {
   const { loading, getProfesoresPorMateriaYNivel, getSlotsPorProfesor, getSlot, getValorHora } = useTurnosData();
 
-  const esPack   = data.tipoPedido !== "suelto";
-  const diasRango = data.tipoPedido === "pack_semanal" ? 7 : 14;
+  const esPack      = data.tipoPedido !== "suelto";
+  const diasRango   = data.tipoPedido === "pack_semanal" ? 7 : 28;
+  const minHorasPack = data.tipoPedido === "pack_semanal" ? 3 : 12;
 
   // Precio estimado para el slot seleccionado (suelto)
   const selectedSlot = data.slotId ? getSlot(data.slotId) : null;
@@ -43,7 +42,7 @@ export default function PasoSlot({ data, onChange, errors }: Props) {
   }, 0);
   const totalHorasPack = totalMinutosPack / 60;
   const montoPack      = valorHora > 0 ? (totalMinutosPack / 60) * valorHora : null;
-  const packCompleto   = totalHorasPack >= MIN_HORAS_PACK;
+  const packCompleto   = totalHorasPack >= minHorasPack;
 
   // Filtrar slots por rango de días para pack
   function filtrarPorRango(slots: MockSlot[]): MockSlot[] {
@@ -127,13 +126,13 @@ export default function PasoSlot({ data, onChange, errors }: Props) {
               {packCompleto ? "✅ Mínimo alcanzado" : `⏱ Horas seleccionadas`}
             </span>
             <span className={`text-sm font-black ${packCompleto ? "text-[#059669]" : "text-[#7c3aed]"}`}>
-              {totalHorasPack.toFixed(1)} / {MIN_HORAS_PACK} hs
+              {totalHorasPack.toFixed(1)} / {minHorasPack} hs
             </span>
           </div>
           <div className="w-full bg-[#e5e7eb] rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all ${packCompleto ? "bg-[#10b981]" : "bg-[#7c3aed]"}`}
-              style={{ width: `${Math.min(100, (totalHorasPack / MIN_HORAS_PACK) * 100)}%` }}
+              style={{ width: `${Math.min(100, (totalHorasPack / minHorasPack) * 100)}%` }}
             />
           </div>
           {montoPack !== null && data.slotIds.length > 0 && (

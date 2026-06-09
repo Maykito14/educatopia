@@ -87,7 +87,7 @@ export default function TurnosMasivosProfesorClient({
 
   function generar() {
     const desde = new Date(semana+"T00:00:00");
-    const diasRango = tienePack && tipoPack === "mensual" ? 13 : 6;
+    const diasRango = tienePack && tipoPack === "mensual" ? 27 : 6;
     const hasta = new Date(desde); hasta.setDate(desde.getDate()+diasRango);
     const ss = generarSlots(profesorId, disponibilidad, desde, hasta);
     setSlots(ss); setSelSlots(new Set()); setGenerated(true); setResult(null);
@@ -99,7 +99,8 @@ export default function TurnosMasivosProfesorClient({
 
   function puedeCrear() {
     if (selectedSlots.length === 0 || !materia || !anio || pending) return false;
-    if (tienePack && horasSeleccionadas < 6) return false;
+    const minHorasPack = tipoPack === "semanal" ? 3 : 12;
+    if (tienePack && horasSeleccionadas < minHorasPack) return false;
     if (modoAlumno === "existente") return !!alumnoId;
     return !!(nuevoAlumno.nombre.trim() && nuevoAlumno.apellido.trim());
   }
@@ -256,7 +257,7 @@ export default function TurnosMasivosProfesorClient({
           )}
           {tienePack && (
             <p className="text-xs font-semibold text-[#7c3aed]">
-              Pack requiere mínimo 6 horas. Los turnos se crearán como <strong>confirmados</strong>.
+              Pack requiere mínimo {tipoPack === "semanal" ? 3 : 12} horas. Los turnos se crearán como <strong>confirmados</strong>.
             </p>
           )}
         </div>
@@ -301,7 +302,7 @@ export default function TurnosMasivosProfesorClient({
                   <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase">
                     Horas totales{tienePack ? " (mín. 6)" : ""}
                   </p>
-                  <p className={`text-xl font-black ${tienePack && horasSeleccionadas >= 6 ? "text-[#059669]" : "text-[#1e1b4b]"}`}>
+                  <p className={`text-xl font-black ${tienePack && horasSeleccionadas >= (tipoPack === "semanal" ? 3 : 12) ? "text-[#059669]" : "text-[#1e1b4b]"}`}>
                     {horasSeleccionadas.toFixed(1)} hs
                   </p>
                 </div>
