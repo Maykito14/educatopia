@@ -99,6 +99,29 @@ async function sincronizarEstadoSlot(
   }
 }
 
+export async function eliminarTurnoAdmin(
+  turnoId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createServiceClient();
+
+  const { data: turno } = await supabase
+    .from("turnos")
+    .select("slot_id")
+    .eq("id", turnoId)
+    .single<{ slot_id: string }>();
+
+  if (!turno) return { ok: false, error: "Turno no encontrado" };
+
+  const slotId = turno.slot_id;
+  const { error } = await supabase.from("turnos").delete().eq("id", turnoId);
+  if (error) return { ok: false, error: error.message };
+
+  await sincronizarEstadoSlot(supabase, slotId);
+  revalidatePath("/admin/turnos");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
 export async function reprogramarTurnoAdmin(
   turnoId: string,
   nuevoSlotId: string

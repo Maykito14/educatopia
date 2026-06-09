@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { actualizarTurno, obtenerSlotsDisponiblesAdmin, reprogramarTurnoAdmin } from "./actions";
+import { actualizarTurno, obtenerSlotsDisponiblesAdmin, reprogramarTurnoAdmin, eliminarTurnoAdmin } from "./actions";
 import type { SlotDisponible } from "./actions";
 
 type TurnoEdit = {
@@ -206,10 +206,19 @@ function ReprogramarPanel({
 function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nombre:string}[] }) {
   const [pending, startTrans] = useTransition();
   const [showReprogramar, setShowReprogramar] = useState(false);
+  const [showEliminar, setShowEliminar] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState("");
   const profNombre = profesores.find(p=>p.id===t.slot?.profesor_id)?.nombre ?? "—";
 
   function update(patch: Parameters<typeof actualizarTurno>[1]) {
     startTrans(() => actualizarTurno(t.id, patch));
+  }
+
+  function handleEliminar() {
+    startTrans(async () => {
+      const r = await eliminarTurnoAdmin(t.id);
+      if (!r.ok) setErrorEliminar(r.error ?? "Error al eliminar");
+    });
   }
 
   return (
@@ -273,21 +282,34 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
             {labelCreador(t.creador)}
           </span>
         </td>
-        {/* Reprogramar */}
+        {/* Acciones */}
         <td className="px-3 py-2.5">
-          {t.slot && (
+          <div className="flex flex-col gap-1">
+            {t.slot && (
+              <button
+                type="button"
+                onClick={() => { setShowReprogramar(v => !v); setShowEliminar(false); }}
+                className={`px-2 py-1 rounded-xl text-xs font-black transition-colors ${
+                  showReprogramar
+                    ? "bg-[#ede9fe] text-[#7c3aed]"
+                    : "bg-[#f3f4f6] text-[#374151] hover:bg-[#ede9fe] hover:text-[#7c3aed]"
+                }`}
+              >
+                📅 Reprogramar
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setShowReprogramar(v => !v)}
+              onClick={() => { setShowEliminar(v => !v); setShowReprogramar(false); setErrorEliminar(""); }}
               className={`px-2 py-1 rounded-xl text-xs font-black transition-colors ${
-                showReprogramar
-                  ? "bg-[#ede9fe] text-[#7c3aed]"
-                  : "bg-[#f3f4f6] text-[#374151] hover:bg-[#ede9fe] hover:text-[#7c3aed]"
+                showEliminar
+                  ? "bg-[#fee2e2] text-[#ef4444]"
+                  : "bg-[#f3f4f6] text-[#374151] hover:bg-[#fee2e2] hover:text-[#ef4444]"
               }`}
             >
-              📅 Reprogramar
+              🗑️ Eliminar
             </button>
-          )}
+          </div>
         </td>
       </tr>
       {showReprogramar && t.slot && (
@@ -299,6 +321,27 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
               slotActualId={t.slot.id}
               onCerrar={() => setShowReprogramar(false)}
             />
+          </td>
+        </tr>
+      )}
+      {showEliminar && (
+        <tr className="bg-[#fff5f5] border-b border-[#fecaca]">
+          <td colSpan={10} className="px-4 py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-semibold text-[#374151]">
+                ¿Eliminás el turno de <span className="font-black text-[#1e1b4b]">{t.alumno?.nombre} {t.alumno?.apellido}</span>?{" "}
+                <span className="text-[#ef4444] font-black">Esta acción no se puede deshacer.</span>
+              </span>
+              {errorEliminar && <span className="text-xs font-black text-[#ef4444]">✗ {errorEliminar}</span>}
+              <button type="button" disabled={pending} onClick={handleEliminar}
+                className="px-3 py-1 rounded-xl bg-[#ef4444] text-white text-xs font-black hover:bg-[#dc2626] disabled:opacity-50 transition-colors">
+                {pending ? "Eliminando…" : "Sí, eliminar"}
+              </button>
+              <button type="button" disabled={pending} onClick={() => setShowEliminar(false)}
+                className="px-3 py-1 rounded-xl bg-[#f3f4f6] text-[#374151] text-xs font-black hover:bg-[#e5e7eb] disabled:opacity-50 transition-colors">
+                Cancelar
+              </button>
+            </div>
           </td>
         </tr>
       )}
@@ -391,7 +434,7 @@ export default function TurnosAdminClient({
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-[#f3f4f6]">
-                  {["Fecha","Alumno","Profesor","Materia","Estado","Duración","Controles","Cobro","Registrado",""].map(h=>(
+                  {["Fecha","Alumno","Profesor","Materia","Estado","Duración","Controles","Cobro","Registrado","Acciones"].map(h=>(
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-extrabold text-[#9ca3af] uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>

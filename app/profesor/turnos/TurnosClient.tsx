@@ -4,7 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import {
   confirmarTurno, marcarAsistencia, actualizarCobro,
   obtenerSlotsDisponibles, reprogramarTurno,
-  actualizarDatosTurno, actualizarDatosAlumno,
+  actualizarDatosTurno, actualizarDatosAlumno, eliminarTurno,
 } from "./actions";
 import type { SlotDisponible } from "./actions";
 
@@ -333,6 +333,8 @@ function TurnoCard({ turno }: { turno: TurnoRow }) {
   const [open, setOpen] = useState(false);
   const [showReprogramar, setShowReprogramar] = useState(false);
   const [showEditar, setShowEditar] = useState(false);
+  const [showEliminar, setShowEliminar] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState("");
   const [pending, startTransition] = useTransition();
   const slot = turno.slot;
   const alumno = turno.alumno;
@@ -343,10 +345,12 @@ function TurnoCard({ turno }: { turno: TurnoRow }) {
 
   function handleOpenEditar() {
     setShowReprogramar(false);
+    setShowEliminar(false);
     setShowEditar(true);
   }
   function handleOpenReprogramar() {
     setShowEditar(false);
+    setShowEliminar(false);
     setShowReprogramar(true);
   }
 
@@ -463,6 +467,42 @@ function TurnoCard({ turno }: { turno: TurnoRow }) {
                   onCerrar={() => setShowReprogramar(false)}
                 />
               )
+            )}
+          </div>
+
+          {/* Eliminar */}
+          <div className="pt-2 border-t border-[#fee2e2]">
+            <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-2">Zona de peligro</p>
+            {!showEliminar ? (
+              <button type="button"
+                onClick={() => { setShowEditar(false); setShowReprogramar(false); setShowEliminar(true); setErrorEliminar(""); }}
+                className="px-3 py-1.5 rounded-xl bg-[#fee2e2] text-[#ef4444] text-xs font-black hover:bg-[#fecaca] transition-colors">
+                🗑️ Eliminar turno
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-[#374151]">
+                  ¿Eliminás este turno? <span className="text-[#ef4444] font-black">Esta acción no se puede deshacer.</span>
+                </p>
+                {errorEliminar && <p className="text-xs font-black text-[#ef4444]">✗ {errorEliminar}</p>}
+                <div className="flex gap-2">
+                  <button type="button" disabled={pending}
+                    onClick={() => {
+                      startTransition(async () => {
+                        const r = await eliminarTurno(turno.id);
+                        if (!r.ok) setErrorEliminar(r.error ?? "Error al eliminar");
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#ef4444] text-white text-xs font-black hover:bg-[#dc2626] disabled:opacity-50 transition-colors">
+                    {pending ? "Eliminando…" : "Sí, eliminar"}
+                  </button>
+                  <button type="button" disabled={pending}
+                    onClick={() => setShowEliminar(false)}
+                    className="px-3 py-1.5 rounded-xl bg-[#f3f4f6] text-[#374151] text-xs font-black hover:bg-[#e5e7eb] disabled:opacity-50 transition-colors">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

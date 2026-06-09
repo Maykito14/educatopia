@@ -101,6 +101,41 @@ export async function actualizarDatosAlumno(
   return { ok: true };
 }
 
+export async function eliminarTurno(
+  turnoId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return { ok: false, error: "No autorizado" };
+
+  const supabase = createServiceClient();
+
+  const { data: profesor } = await supabase
+    .from("profesores")
+    .select("id")
+    .eq("profile_id", user.id)
+    .single<{ id: string }>();
+  if (!profesor) return { ok: false, error: "No autorizado" };
+
+  const { data: turno } = await supabase
+    .from("turnos")
+    .select("slot_id, slot:slots(profesor_id)")
+    .eq("id", turnoId)
+    .single<{ slot_id: string; slot: { profesor_id: string } | null }>();
+
+  if (!turno) return { ok: false, error: "Turno no encontrado" };
+  if (turno.slot?.profesor_id !== profesor.id) return { ok: false, error: "No autorizado" };
+
+  const slotId = turno.slot_id;
+  const { error } = await supabase.from("turnos").delete().eq("id", turnoId);
+  if (error) return { ok: false, error: error.message };
+
+  await sincronizarEstadoSlot(supabase, slotId);
+  revalidatePath("/profesor/turnos");
+  revalidatePath("/profesor");
+  return { ok: true };
+}
+
 export async function marcarAsistencia(turnoId: string, asistio: boolean) {
   const supabase = createServiceClient();
   await supabase
