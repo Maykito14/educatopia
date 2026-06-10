@@ -250,7 +250,7 @@ export default function TurnosMasivosProfesorClient({
                       : "border-[#e5e7eb] text-[#9ca3af] hover:border-[#c4b5fd]"
                   }`}
                 >
-                  {t === "semanal" ? "📅 Semanal (1 semana)" : "📆 Mensual (2 semanas)"}
+                  {t === "semanal" ? "📅 Semanal (1 semana)" : "📆 Mensual (4 semanas)"}
                 </button>
               ))}
             </div>

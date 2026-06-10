@@ -64,9 +64,13 @@ function agruparPorFecha(slots: SlotDisponible[]) {
 
 /* ── Reprogramar ─────────────────────────────────────────────────────────── */
 
+function tieneGrupo(slot: SlotDisponible, materia: string, anio: string, colegio: string) {
+  return slot.turnosEnSlot.some(t => t.materia === materia && t.anio === anio && t.colegio === colegio);
+}
+
 function ReprogramarPanel({
-  turnoId, profesorId, slotActualId, onCerrar,
-}: { turnoId: string; profesorId: string; slotActualId: string; onCerrar: () => void }) {
+  turnoId, slotActualId, materia, anio, colegio, onCerrar,
+}: { turnoId: string; slotActualId: string; materia: string; anio: string; colegio: string; onCerrar: () => void }) {
   const [fase, setFase] = useState<"cargando"|"seleccion"|"confirmando"|"exito"|"error">("cargando");
   const [slots, setSlots] = useState<SlotDisponible[]>([]);
   const [seleccionado, setSeleccionado] = useState<SlotDisponible | null>(null);
@@ -74,8 +78,8 @@ function ReprogramarPanel({
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    obtenerSlotsDisponibles(profesorId, slotActualId).then(data => { setSlots(data); setFase("seleccion"); });
-  }, [profesorId, slotActualId]);
+    obtenerSlotsDisponibles(slotActualId).then(data => { setSlots(data); setFase("seleccion"); });
+  }, [slotActualId]);
 
   function confirmar() {
     if (!seleccionado) return;
@@ -88,7 +92,7 @@ function ReprogramarPanel({
   if (fase === "cargando") return (
     <div className="text-xs text-[#9ca3af] font-semibold py-2 flex items-center gap-2">
       <span className="inline-block w-3 h-3 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin"/>
-      Cargando slots disponibles…
+      Cargando turnos disponibles…
     </div>
   );
 
@@ -103,36 +107,80 @@ function ReprogramarPanel({
     </div>
   );
 
-  const grupos = agruparPorFecha(slots);
-
   if (fase === "seleccion") {
     if (slots.length === 0) return (
       <div className="space-y-1">
-        <p className="text-xs text-[#9ca3af] font-semibold">No hay slots disponibles.</p>
+        <p className="text-xs text-[#9ca3af] font-semibold">No hay turnos disponibles para reprogramar.</p>
         <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline">Cerrar</button>
       </div>
     );
+
+    const conGrupo = slots.filter(s => tieneGrupo(s, materia, anio, colegio));
+    const sinGrupo = slots.filter(s => !tieneGrupo(s, materia, anio, colegio));
+    const gruposPorFecha = agruparPorFecha(sinGrupo);
+
     return (
       <div className="space-y-3">
-        <p className="text-xs font-extrabold text-[#374151]">Seleccioná el nuevo horario:</p>
-        <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
-          {Array.from(grupos.entries()).map(([fecha, slotsDelDia]) => (
-            <div key={fecha}>
-              <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-1">
-                {new Date(fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+        <p className="text-xs font-extrabold text-[#374151]">Elegí el nuevo turno:</p>
+        <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
+
+          {/* Con grupo */}
+          {conGrupo.length > 0 && (
+            <div>
+              <p className="text-[10px] font-extrabold text-[#059669] uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#059669] inline-block"/>
+                Con grupo ({conGrupo.length})
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {slotsDelDia.map(s => (
+                {conGrupo.map(s => (
                   <button key={s.id} type="button"
                     onClick={() => { setSeleccionado(s); setFase("confirmando"); }}
-                    className="px-2.5 py-1 rounded-lg text-xs font-black border-2 border-[#e5e7eb] bg-white hover:border-[#7c3aed] hover:text-[#7c3aed] transition-colors">
-                    {s.hora_inicio.slice(0,5)} ({s.duracion_minutos} min)
-                    {s.capacidad_max - s.ocupados < 3 && <span className="ml-1 text-[#f59e0b]">·{s.capacidad_max - s.ocupados}c</span>}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-black border-2 border-[#bbf7d0] bg-[#f0fdf4] text-[#059669] hover:border-[#059669] transition-colors">
+                    <span className="text-[#6b7280] font-semibold">{s.profesorNombre}</span>
+                    <span>·</span>
+                    {new Date(s.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"})}
+                    <span>·</span>
+                    {s.hora_inicio.slice(0,5)}
+                    <span className="text-[#9ca3af] font-semibold">({s.duracion_minutos}')</span>
+                    {s.capacidad_max - s.ocupados <= 2 && (
+                      <span className="text-[#f59e0b] font-black">·{s.capacidad_max - s.ocupados}c</span>
+                    )}
                   </button>
                 ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {/* Sin grupo, por fecha */}
+          {sinGrupo.length > 0 && (
+            <div>
+              {conGrupo.length > 0 && (
+                <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-1.5">Otros turnos disponibles</p>
+              )}
+              {Array.from(gruposPorFecha.entries()).map(([fecha, slotsDelDia]) => (
+                <div key={fecha} className="mb-2">
+                  <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-1">
+                    {new Date(fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {slotsDelDia.map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => { setSeleccionado(s); setFase("confirmando"); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black border-2 border-[#e5e7eb] bg-white hover:border-[#7c3aed] hover:text-[#7c3aed] transition-colors">
+                        <span className="text-[#9ca3af] font-semibold">{s.profesorNombre}</span>
+                        <span>·</span>
+                        {s.hora_inicio.slice(0,5)}
+                        <span className="text-[#9ca3af] font-semibold">({s.duracion_minutos}')</span>
+                        {s.capacidad_max - s.ocupados <= 2 && (
+                          <span className="text-[#f59e0b] font-black">·{s.capacidad_max - s.ocupados}c</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline">Cancelar</button>
       </div>
@@ -142,9 +190,13 @@ function ReprogramarPanel({
   return (
     <div className="space-y-2">
       <p className="text-xs font-semibold text-[#374151]">
-        Nuevo turno: <span className="font-black text-[#7c3aed]">
-          {seleccionado && formatFechaSlot(seleccionado.fecha, seleccionado.hora_inicio)} ({seleccionado?.duracion_minutos} min)
+        Nuevo turno:{" "}
+        <span className="font-black text-[#7c3aed]">
+          {seleccionado && `${seleccionado.profesorNombre} · ${formatFechaSlot(seleccionado.fecha, seleccionado.hora_inicio)} (${seleccionado.duracion_minutos} min)`}
         </span>
+        {seleccionado && tieneGrupo(seleccionado, materia, anio, colegio) && (
+          <span className="ml-2 text-[10px] font-black text-[#059669] bg-[#d1fae5] px-1.5 py-0.5 rounded-full">Con grupo</span>
+        )}
       </p>
       <p className="text-[10px] text-[#6b7280]">El turno volverá a estado pendiente y se notificará al responsable.</p>
       <div className="flex gap-2">
@@ -461,9 +513,10 @@ function TurnoCard({ turno }: { turno: TurnoRow }) {
                 📅 Reprogramar turno
               </button>
             ) : (
-              slot?.profesor_id && (
+              slot && (
                 <ReprogramarPanel
-                  turnoId={turno.id} profesorId={slot.profesor_id} slotActualId={slot.id}
+                  turnoId={turno.id} slotActualId={slot.id}
+                  materia={turno.materia} anio={turno.anio} colegio={turno.colegio}
                   onCerrar={() => setShowReprogramar(false)}
                 />
               )

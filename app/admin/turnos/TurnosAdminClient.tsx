@@ -68,15 +68,15 @@ function agruparPorFecha(slots: SlotDisponible[]) {
   return grupos;
 }
 
+function tieneGrupo(slot: SlotDisponible, materia: string, anio: string, colegio: string) {
+  return slot.turnosEnSlot.some(t => t.materia === materia && t.anio === anio && t.colegio === colegio);
+}
+
 function ReprogramarPanel({
-  turnoId,
-  profesorId,
-  slotActualId,
-  onCerrar,
+  turnoId, slotActualId, materia, anio, colegio, onCerrar,
 }: {
-  turnoId: string;
-  profesorId: string;
-  slotActualId: string;
+  turnoId: string; slotActualId: string;
+  materia: string; anio: string; colegio: string;
   onCerrar: () => void;
 }) {
   const [fase, setFase] = useState<"cargando" | "seleccion" | "confirmando" | "exito" | "error">("cargando");
@@ -86,87 +86,110 @@ function ReprogramarPanel({
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    obtenerSlotsDisponiblesAdmin(profesorId, slotActualId).then(data => {
-      setSlots(data);
-      setFase("seleccion");
-    });
-  }, [profesorId, slotActualId]);
+    obtenerSlotsDisponiblesAdmin(slotActualId).then(data => { setSlots(data); setFase("seleccion"); });
+  }, [slotActualId]);
 
   function confirmar() {
     if (!seleccionado) return;
     startTransition(async () => {
       const result = await reprogramarTurnoAdmin(turnoId, seleccionado.id);
-      if (result.ok) {
-        setFase("exito");
-      } else {
-        setErrorMsg(result.error ?? "Error al reprogramar");
-        setFase("error");
-      }
+      result.ok ? setFase("exito") : (setErrorMsg(result.error ?? "Error al reprogramar"), setFase("error"));
     });
   }
 
-  if (fase === "cargando") {
-    return (
-      <div className="flex items-center gap-2 py-1 text-xs text-[#9ca3af] font-semibold">
-        <span className="inline-block w-3 h-3 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
-        Cargando slots disponibles…
-      </div>
-    );
-  }
+  if (fase === "cargando") return (
+    <div className="flex items-center gap-2 py-1 text-xs text-[#9ca3af] font-semibold">
+      <span className="inline-block w-3 h-3 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+      Cargando turnos disponibles…
+    </div>
+  );
 
-  if (fase === "exito") {
-    return (
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-black text-[#059669]">✓ Turno reprogramado. Se notificó al responsable.</span>
-        <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline ml-4">Cerrar</button>
-      </div>
-    );
-  }
+  if (fase === "exito") return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-black text-[#059669]">✓ Turno reprogramado. Se notificó al responsable.</span>
+      <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline ml-4">Cerrar</button>
+    </div>
+  );
 
-  if (fase === "error") {
-    return (
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-black text-[#ef4444]">✗ {errorMsg}</span>
-        <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline ml-4">Cerrar</button>
-      </div>
-    );
-  }
-
-  const grupos = agruparPorFecha(slots);
+  if (fase === "error") return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-black text-[#ef4444]">✗ {errorMsg}</span>
+      <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline ml-4">Cerrar</button>
+    </div>
+  );
 
   if (fase === "seleccion") {
-    if (slots.length === 0) {
-      return (
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-[#9ca3af] font-semibold">No hay slots disponibles para este profesor.</span>
-          <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline ml-4">Cerrar</button>
-        </div>
-      );
-    }
+    if (slots.length === 0) return (
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-[#9ca3af] font-semibold">No hay turnos disponibles para reprogramar.</span>
+        <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline ml-4">Cerrar</button>
+      </div>
+    );
+
+    const conGrupo = slots.filter(s => tieneGrupo(s, materia, anio, colegio));
+    const sinGrupo = slots.filter(s => !tieneGrupo(s, materia, anio, colegio));
+    const gruposPorFecha = agruparPorFecha(sinGrupo);
+
     return (
-      <div className="space-y-2">
-        <p className="text-xs font-extrabold text-[#374151]">Seleccioná el nuevo horario (mismo profesor):</p>
-        <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-          {Array.from(grupos.entries()).map(([fecha, slotsDelDia]) => (
-            <div key={fecha} className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[10px] font-extrabold text-[#9ca3af] uppercase">
-                {new Date(fecha + "T00:00:00").toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
-              </span>
-              {slotsDelDia.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => { setSeleccionado(s); setFase("confirmando"); }}
-                  className="px-2 py-1 rounded-lg text-xs font-black border-2 border-[#e5e7eb] bg-white hover:border-[#7c3aed] hover:text-[#7c3aed] transition-colors"
-                >
-                  {s.hora_inicio.slice(0, 5)} ({s.duracion_minutos}')
-                  {s.capacidad_max - s.ocupados < 3 && (
-                    <span className="ml-1 text-[#f59e0b]">·{s.capacidad_max - s.ocupados}c</span>
-                  )}
-                </button>
+      <div className="space-y-3">
+        <p className="text-xs font-extrabold text-[#374151]">Elegí el nuevo turno:</p>
+        <div className="max-h-72 overflow-y-auto space-y-3 pr-1">
+
+          {conGrupo.length > 0 && (
+            <div>
+              <p className="text-[10px] font-extrabold text-[#059669] uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#059669] inline-block"/>
+                Con grupo ({conGrupo.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {conGrupo.map(s => (
+                  <button key={s.id} type="button"
+                    onClick={() => { setSeleccionado(s); setFase("confirmando"); }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-black border-2 border-[#bbf7d0] bg-[#f0fdf4] text-[#059669] hover:border-[#059669] transition-colors">
+                    <span className="text-[#6b7280] font-semibold">{s.profesorNombre}</span>
+                    <span>·</span>
+                    {new Date(s.fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"})}
+                    <span>·</span>
+                    {s.hora_inicio.slice(0,5)}
+                    <span className="text-[#9ca3af] font-semibold">({s.duracion_minutos}')</span>
+                    {s.capacidad_max - s.ocupados <= 2 && (
+                      <span className="text-[#f59e0b] font-black">·{s.capacidad_max - s.ocupados}c</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {sinGrupo.length > 0 && (
+            <div>
+              {conGrupo.length > 0 && (
+                <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-1.5">Otros turnos disponibles</p>
+              )}
+              {Array.from(gruposPorFecha.entries()).map(([fecha, slotsDelDia]) => (
+                <div key={fecha} className="mb-2">
+                  <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-1">
+                    {new Date(fecha+"T00:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {slotsDelDia.map(s => (
+                      <button key={s.id} type="button"
+                        onClick={() => { setSeleccionado(s); setFase("confirmando"); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black border-2 border-[#e5e7eb] bg-white hover:border-[#7c3aed] hover:text-[#7c3aed] transition-colors">
+                        <span className="text-[#9ca3af] font-semibold">{s.profesorNombre}</span>
+                        <span>·</span>
+                        {s.hora_inicio.slice(0,5)}
+                        <span className="text-[#9ca3af] font-semibold">({s.duracion_minutos}')</span>
+                        {s.capacidad_max - s.ocupados <= 2 && (
+                          <span className="text-[#f59e0b] font-black">·{s.capacidad_max - s.ocupados}c</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          ))}
+          )}
         </div>
         <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline">Cancelar</button>
       </div>
@@ -177,25 +200,21 @@ function ReprogramarPanel({
   return (
     <div className="flex flex-wrap items-center gap-3">
       <span className="text-xs font-semibold text-[#374151]">
-        Nuevo slot: <span className="font-black text-[#7c3aed]">
-          {seleccionado && formatFechaSlot(seleccionado.fecha, seleccionado.hora_inicio)} ({seleccionado?.duracion_minutos} min)
+        Nuevo turno:{" "}
+        <span className="font-black text-[#7c3aed]">
+          {seleccionado && `${seleccionado.profesorNombre} · ${formatFechaSlot(seleccionado.fecha, seleccionado.hora_inicio)} (${seleccionado.duracion_minutos} min)`}
         </span>
+        {seleccionado && tieneGrupo(seleccionado, materia, anio, colegio) && (
+          <span className="ml-2 text-[10px] font-black text-[#059669] bg-[#d1fae5] px-1.5 py-0.5 rounded-full">Con grupo</span>
+        )}
         <span className="text-[#9ca3af] ml-1">· volverá a pendiente</span>
       </span>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={confirmar}
-        className="px-3 py-1 rounded-xl bg-[#7c3aed] text-white text-xs font-black hover:bg-[#6d28d9] transition-colors disabled:opacity-50"
-      >
+      <button type="button" disabled={pending} onClick={confirmar}
+        className="px-3 py-1 rounded-xl bg-[#7c3aed] text-white text-xs font-black hover:bg-[#6d28d9] transition-colors disabled:opacity-50">
         {pending ? "Reprogramando…" : "Confirmar"}
       </button>
-      <button
-        type="button"
-        disabled={pending}
-        onClick={() => { setSeleccionado(null); setFase("seleccion"); }}
-        className="px-3 py-1 rounded-xl bg-[#f3f4f6] text-[#374151] text-xs font-black hover:bg-[#e5e7eb] transition-colors disabled:opacity-50"
-      >
+      <button type="button" disabled={pending} onClick={() => { setSeleccionado(null); setFase("seleccion"); }}
+        className="px-3 py-1 rounded-xl bg-[#f3f4f6] text-[#374151] text-xs font-black hover:bg-[#e5e7eb] transition-colors disabled:opacity-50">
         Cambiar
       </button>
       <button type="button" onClick={onCerrar} className="text-xs font-black text-[#9ca3af] underline">Cancelar</button>
@@ -317,8 +336,8 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
           <td colSpan={10} className="px-4 py-3">
             <ReprogramarPanel
               turnoId={t.id}
-              profesorId={t.slot.profesor_id}
               slotActualId={t.slot.id}
+              materia={t.materia} anio={t.anio} colegio={t.colegio}
               onCerrar={() => setShowReprogramar(false)}
             />
           </td>

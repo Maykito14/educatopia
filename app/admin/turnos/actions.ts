@@ -11,6 +11,8 @@ export type SlotDisponible = {
   duracion_minutos: number;
   capacidad_max: number;
   ocupados: number;
+  profesorNombre: string;
+  turnosEnSlot: { materia: string; anio: string; colegio: string }[];
 };
 
 export async function actualizarTurno(id: string, patch: {
@@ -38,42 +40,60 @@ export async function actualizarTurno(id: string, patch: {
   revalidatePath("/admin");
 }
 
-/** Devuelve los slots futuros del profesor con cupo disponible, excluyendo el slot actual. */
+/** Devuelve todos los slots futuros con cupo disponible (todos los profesores), excluyendo el slot actual. */
 export async function obtenerSlotsDisponiblesAdmin(
-  profesorId: string,
   excludeSlotId: string
 ): Promise<SlotDisponible[]> {
   const supabase = createServiceClient();
   const hoy = new Date().toISOString().slice(0, 10);
 
+  type SlotRaw = {
+    id: string; fecha: string; hora_inicio: string; hora_fin: string;
+    duracion_minutos: number; capacidad_max: number;
+    profesor: { nombre: string } | null;
+  };
+
   const { data: slots } = await supabase
     .from("slots")
-    .select("id, fecha, hora_inicio, hora_fin, duracion_minutos, capacidad_max")
-    .eq("profesor_id", profesorId)
+    .select("id, fecha, hora_inicio, hora_fin, duracion_minutos, capacidad_max, profesor:profesores(nombre)")
     .neq("estado", "cancelado")
     .gte("fecha", hoy)
     .neq("id", excludeSlotId)
     .order("fecha")
     .order("hora_inicio")
-    .returns<{ id: string; fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number; capacidad_max: number }[]>();
+    .returns<SlotRaw[]>();
 
   if (!slots || slots.length === 0) return [];
 
   const slotIds = slots.map(s => s.id);
-  const { data: turnosOcupados } = await supabase
+
+  type TurnoEnSlot = { slot_id: string; materia: string; anio: string; colegio: string };
+  const { data: turnosData } = await supabase
     .from("turnos")
-    .select("slot_id")
+    .select("slot_id, materia, anio, colegio")
     .in("slot_id", slotIds)
     .neq("estado", "cancelado")
-    .returns<{ slot_id: string }[]>();
+    .returns<TurnoEnSlot[]>();
 
-  const ocupados = new Map<string, number>();
-  for (const t of turnosOcupados ?? []) {
-    ocupados.set(t.slot_id, (ocupados.get(t.slot_id) ?? 0) + 1);
+  const turnosPorSlot = new Map<string, TurnoEnSlot[]>();
+  for (const t of turnosData ?? []) {
+    const list = turnosPorSlot.get(t.slot_id) ?? [];
+    list.push(t);
+    turnosPorSlot.set(t.slot_id, list);
   }
 
   return slots
-    .map(s => ({ ...s, ocupados: ocupados.get(s.id) ?? 0 }))
+    .map(s => ({
+      id:               s.id,
+      fecha:            s.fecha,
+      hora_inicio:      s.hora_inicio,
+      hora_fin:         s.hora_fin,
+      duracion_minutos: s.duracion_minutos,
+      capacidad_max:    s.capacidad_max,
+      ocupados:         (turnosPorSlot.get(s.id) ?? []).length,
+      profesorNombre:   s.profesor?.nombre ?? "—",
+      turnosEnSlot:     (turnosPorSlot.get(s.id) ?? []).map(t => ({ materia: t.materia, anio: t.anio, colegio: t.colegio })),
+    }))
     .filter(s => s.ocupados < s.capacidad_max);
 }
 
