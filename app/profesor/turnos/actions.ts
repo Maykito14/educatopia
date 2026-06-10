@@ -62,6 +62,7 @@ export async function actualizarDatosTurno(
     objetivo?: string | null;
     notas?: string | null;
     duracion_minutos?: number;
+    tipo_pedido?: "suelto" | "pack_semanal" | "pack_mensual";
   }
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = createServiceClient();

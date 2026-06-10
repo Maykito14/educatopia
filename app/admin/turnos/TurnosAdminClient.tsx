@@ -4,8 +4,16 @@ import { useState, useEffect, useTransition } from "react";
 import { actualizarTurno, obtenerSlotsDisponiblesAdmin, reprogramarTurnoAdmin, eliminarTurnoAdmin } from "./actions";
 import type { SlotDisponible } from "./actions";
 
+type PrecioRow = {
+  nivel: string;
+  valor_hora: number;
+  pack_semanal_precio: number | null;
+  pack_mensual_precio: number | null;
+};
+
 type TurnoEdit = {
   id: string; created_at: string | null; materia: string; anio: string; colegio: string; estado: string;
+  tipo_pedido: "suelto" | "pack_semanal" | "pack_mensual" | null;
   confirmado_por_profesor: boolean; asistio: boolean | null;
   pagado: boolean; cobrado: boolean;
   medio_cobro: "efectivo" | "transferencia" | null;
@@ -13,6 +21,23 @@ type TurnoEdit = {
   slot: { id: string; fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number; profesor_id: string } | null;
   alumno: { nombre: string; apellido: string; nivel_educativo: string | null } | null;
 };
+
+function calcularPrecioHora(
+  tipo: "suelto" | "pack_semanal" | "pack_mensual",
+  nivel: string | null,
+  precios: PrecioRow[]
+): number | null {
+  if (!nivel) return null;
+  const p = precios.find(pr => pr.nivel === nivel);
+  if (!p) return null;
+  if (tipo === "pack_semanal") return p.pack_semanal_precio ?? p.valor_hora;
+  if (tipo === "pack_mensual") return p.pack_mensual_precio ?? p.valor_hora;
+  return p.valor_hora;
+}
+
+function fmtPesos(n: number) {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+}
 
 const ESTADOS = ["pendiente","confirmado","cancelado","completado"];
 
@@ -222,7 +247,7 @@ function ReprogramarPanel({
   );
 }
 
-function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nombre:string}[] }) {
+function TurnoRow({ t, profesores, precios }: { t: TurnoEdit; profesores: {id:string;nombre:string}[]; precios: PrecioRow[] }) {
   const [pending, startTrans] = useTransition();
   const [showReprogramar, setShowReprogramar] = useState(false);
   const [showEliminar, setShowEliminar] = useState(false);
@@ -261,15 +286,35 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
             {ESTADOS.map(s=><option key={s} value={s}>{s}</option>)}
           </select>
         </td>
-        {/* Duración */}
+        {/* Duración + Pack */}
         <td className="px-3 py-2.5">
-          <select value={t.slot?.duracion_minutos??60} disabled={pending}
-            onChange={e=>update({duracion_minutos:Number(e.target.value)})}
-            className="text-xs font-extrabold rounded-lg border border-[#e5e7eb] px-2 py-1 focus:border-[#7c3aed] outline-none bg-white">
-            <option value={60}>60 min</option>
-            <option value={90}>90 min</option>
-            <option value={120}>120 min</option>
-          </select>
+          <div className="flex flex-col gap-1">
+            <select value={t.slot?.duracion_minutos??60} disabled={pending}
+              onChange={e=>update({duracion_minutos:Number(e.target.value)})}
+              className="text-xs font-extrabold rounded-lg border border-[#e5e7eb] px-2 py-1 focus:border-[#7c3aed] outline-none bg-white">
+              <option value={60}>60 min</option>
+              <option value={90}>90 min</option>
+              <option value={120}>120 min</option>
+            </select>
+            <select
+              value={t.tipo_pedido ?? "suelto"}
+              disabled={pending}
+              onChange={e => update({ tipo_pedido: e.target.value as "suelto"|"pack_semanal"|"pack_mensual" })}
+              className="text-xs font-extrabold rounded-lg border border-[#e5e7eb] px-2 py-1 focus:border-[#7c3aed] outline-none bg-white">
+              <option value="suelto">Suelto</option>
+              <option value="pack_semanal">Pack semanal</option>
+              <option value="pack_mensual">Pack mensual</option>
+            </select>
+            {(() => {
+              const tipo = (t.tipo_pedido ?? "suelto") as "suelto"|"pack_semanal"|"pack_mensual";
+              const ph = calcularPrecioHora(tipo, t.alumno?.nivel_educativo ?? null, precios);
+              if (ph == null) return null;
+              const dur = t.slot?.duracion_minutos ?? 60;
+              return (
+                <span className="text-[10px] font-semibold text-[#7c3aed]">{fmtPesos((dur / 60) * ph)}</span>
+              );
+            })()}
+          </div>
         </td>
         {/* Flags */}
         <td className="px-3 py-2.5">
@@ -369,8 +414,8 @@ function TurnoRow({ t, profesores }: { t: TurnoEdit; profesores: {id:string;nomb
 }
 
 export default function TurnosAdminClient({
-  turnos, profesores,
-}: { turnos: TurnoEdit[]; profesores: {id:string;nombre:string}[] }) {
+  turnos, profesores, precios,
+}: { turnos: TurnoEdit[]; profesores: {id:string;nombre:string}[]; precios: PrecioRow[] }) {
   const [filtroProf, setFiltroProf] = useState("todos");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [search, setSearch] = useState("");
@@ -453,13 +498,13 @@ export default function TurnosAdminClient({
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-[#f3f4f6]">
-                  {["Fecha","Alumno","Profesor","Materia","Estado","Duración","Controles","Cobro","Registrado","Acciones"].map(h=>(
+                  {["Fecha","Alumno","Profesor","Materia","Estado","Dur. / Pack","Controles","Cobro","Registrado","Acciones"].map(h=>(
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-extrabold text-[#9ca3af] uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filtrados.map(t=><TurnoRow key={t.id} t={t} profesores={profesores}/>)}
+                {filtrados.map(t=><TurnoRow key={t.id} t={t} profesores={profesores} precios={precios}/>)}
               </tbody>
             </table>
           </div>

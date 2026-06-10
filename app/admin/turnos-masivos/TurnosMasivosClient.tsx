@@ -22,10 +22,14 @@ function normalizarStr(s: string) {
 }
 function isProfesorPermitidoMasivos(
   profesorId: string,
+  nivel: string | null,
   alumno: { id?: string; nombre?: string; apellido?: string } | null,
   restricciones: ProfesorRestriccion[]
 ): boolean {
-  const filtradas = restricciones.filter(r => r.profesorId === profesorId);
+  // Solo aplica restricciones del nivel del alumno; si nivel es null, revisa todas
+  const filtradas = nivel
+    ? restricciones.filter(r => r.profesorId === profesorId && r.nivel === nivel)
+    : restricciones.filter(r => r.profesorId === profesorId);
   if (filtradas.length === 0) return true;
   if (!alumno) return false;
   return filtradas.some(r => r.alumnos.some(a => {
@@ -114,6 +118,11 @@ export default function TurnosMasivosClient({
 
   const alumnoActual  = alumnos.find(a => a.id === alumnoId);
 
+  // Nivel del alumno (para filtrar restricciones solo del nivel correspondiente)
+  const nivelParaRestriccion = modoAlumno === "existente"
+    ? (alumnoActual?.nivel_educativo ?? null)
+    : (nuevoAlumno.nivel_educativo || null);
+
   // Alumno efectivo para la verificación de restricciones
   const alumnoParaRestriccion = modoAlumno === "existente"
     ? (alumnoActual ? { id: alumnoActual.id } : null)
@@ -122,7 +131,7 @@ export default function TurnosMasivosClient({
         : null);
 
   const profesoresFiltrados = profesores.filter(p =>
-    isProfesorPermitidoMasivos(p.id, alumnoParaRestriccion, restricciones)
+    isProfesorPermitidoMasivos(p.id, nivelParaRestriccion, alumnoParaRestriccion, restricciones)
   );
 
   // Si el profId actual no está en la lista filtrada, usar el primero disponible

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import TurnosClient from "./TurnosClient";
 
 export default async function MisTurnosPage() {
@@ -15,16 +16,23 @@ export default async function MisTurnosPage() {
 
   if (!profesor) redirect("/profesor");
 
-  const { data: turnos } = await supabase
-    .from("turnos")
-    .select(`
-      id, alumno_id, materia, anio, colegio, objetivo, notas, estado,
-      confirmado_por_profesor, asistio, pagado, cobrado, medio_cobro,
-      slot:slots(id, fecha, hora_inicio, hora_fin, duracion_minutos, profesor_id),
-      alumno:alumnos(nombre, apellido, edad, nivel_educativo, anio_grado, colegio, nombre_contacto, telefono_contacto)
-    `)
-    .neq("estado", "cancelado")
-    .order("created_at", { ascending: false });
+  const service = createServiceClient();
+
+  const [{ data: turnos }, { data: precios }] = await Promise.all([
+    supabase
+      .from("turnos")
+      .select(`
+        id, alumno_id, materia, anio, colegio, objetivo, notas, estado, tipo_pedido,
+        confirmado_por_profesor, asistio, pagado, cobrado, medio_cobro,
+        slot:slots(id, fecha, hora_inicio, hora_fin, duracion_minutos, profesor_id),
+        alumno:alumnos(nombre, apellido, edad, nivel_educativo, anio_grado, colegio, nombre_contacto, telefono_contacto)
+      `)
+      .neq("estado", "cancelado")
+      .order("created_at", { ascending: false }),
+    service
+      .from("precios")
+      .select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -34,7 +42,10 @@ export default async function MisTurnosPage() {
           Confirmá los turnos solicitados y registrá la asistencia.
         </p>
       </div>
-      <TurnosClient turnos={(turnos ?? []) as Parameters<typeof TurnosClient>[0]["turnos"]} />
+      <TurnosClient
+        turnos={(turnos ?? []) as Parameters<typeof TurnosClient>[0]["turnos"]}
+        precios={(precios ?? []) as Parameters<typeof TurnosClient>[0]["precios"]}
+      />
     </div>
   );
 }

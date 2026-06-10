@@ -4,14 +4,15 @@ import TurnosAdminClient from "./TurnosAdminClient";
 export default async function TurnosAdminPage() {
   const supabase = createServiceClient();
 
-  const [turnosRes, profesoresRes] = await Promise.all([
+  const [turnosRes, profesoresRes, preciosRes] = await Promise.all([
     supabase.from("turnos").select(`
-      id, created_at, solicitado_por, materia, anio, colegio, estado,
+      id, created_at, solicitado_por, materia, anio, colegio, estado, tipo_pedido,
       confirmado_por_profesor, asistio, pagado, cobrado, medio_cobro,
       slot:slots(id, fecha, hora_inicio, hora_fin, duracion_minutos, profesor_id),
       alumno:alumnos(nombre, apellido, nivel_educativo)
     `).order("created_at", { ascending: false }),
     supabase.from("profesores").select("id, nombre").eq("activo",true).order("nombre"),
+    supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
   ]);
 
   // Resolver nombre del creador para cada turno
@@ -30,6 +31,7 @@ export default async function TurnosAdminPage() {
   type RawTurno = {
     id: string; created_at: string | null; solicitado_por: string | null;
     materia: string; anio: string; colegio: string; estado: string;
+    tipo_pedido: string | null;
     confirmado_por_profesor: boolean; asistio: boolean | null;
     pagado: boolean; cobrado: boolean; medio_cobro: "efectivo" | "transferencia" | null;
     slot: { id: string; fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number; profesor_id: string } | null;
@@ -53,6 +55,7 @@ export default async function TurnosAdminPage() {
       <TurnosAdminClient
         turnos={turnos as unknown as Parameters<typeof TurnosAdminClient>[0]["turnos"]}
         profesores={profesoresRes.data ?? []}
+        precios={(preciosRes.data ?? []) as Parameters<typeof TurnosAdminClient>[0]["precios"]}
       />
     </div>
   );

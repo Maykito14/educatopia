@@ -8,6 +8,13 @@ import {
 } from "./actions";
 import type { SlotDisponible } from "./actions";
 
+type PrecioRow = {
+  nivel: string;
+  valor_hora: number;
+  pack_semanal_precio: number | null;
+  pack_mensual_precio: number | null;
+};
+
 type TurnoRow = {
   id: string;
   alumno_id: string;
@@ -16,6 +23,7 @@ type TurnoRow = {
   colegio: string;
   objetivo: string | null;
   notas: string | null;
+  tipo_pedido: "suelto" | "pack_semanal" | "pack_mensual" | null;
   confirmado_por_profesor: boolean;
   asistio: boolean | null;
   pagado: boolean;
@@ -30,6 +38,23 @@ type TurnoRow = {
     nombre_contacto: string | null; telefono_contacto: string | null;
   } | null;
 };
+
+function calcularPrecioHora(
+  tipo: "suelto" | "pack_semanal" | "pack_mensual",
+  nivel: string | null,
+  precios: PrecioRow[]
+): number | null {
+  if (!nivel) return null;
+  const p = precios.find(pr => pr.nivel === nivel);
+  if (!p) return null;
+  if (tipo === "pack_semanal") return p.pack_semanal_precio ?? p.valor_hora;
+  if (tipo === "pack_mensual") return p.pack_mensual_precio ?? p.valor_hora;
+  return p.valor_hora;
+}
+
+function fmtPesos(n: number) {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+}
 
 type Filtro = "todos" | "pendientes" | "confirmados" | "asistidos";
 
@@ -215,7 +240,7 @@ function ReprogramarPanel({
 
 /* ── Editar datos ────────────────────────────────────────────────────────── */
 
-function EditPanel({ turno, onCerrar }: { turno: TurnoRow; onCerrar: () => void }) {
+function EditPanel({ turno, precios, onCerrar }: { turno: TurnoRow; precios: PrecioRow[]; onCerrar: () => void }) {
   const [form, setForm] = useState({
     // turno
     materia:          turno.materia,
@@ -224,6 +249,7 @@ function EditPanel({ turno, onCerrar }: { turno: TurnoRow; onCerrar: () => void 
     objetivo:         turno.objetivo ?? "",
     notas:            turno.notas ?? "",
     duracion_minutos: turno.slot?.duracion_minutos ?? 60,
+    tipo_pedido:      (turno.tipo_pedido ?? "suelto") as "suelto" | "pack_semanal" | "pack_mensual",
     // alumno
     nombre:           turno.alumno?.nombre ?? "",
     apellido:         turno.alumno?.apellido ?? "",
@@ -254,6 +280,7 @@ function EditPanel({ turno, onCerrar }: { turno: TurnoRow; onCerrar: () => void 
           objetivo:         form.objetivo.trim() || null,
           notas:            form.notas.trim() || null,
           duracion_minutos: Number(form.duracion_minutos),
+          tipo_pedido:      form.tipo_pedido,
         }),
         actualizarDatosAlumno(turno.alumno_id, {
           nombre:            form.nombre.trim(),
@@ -315,6 +342,37 @@ function EditPanel({ turno, onCerrar }: { turno: TurnoRow; onCerrar: () => void 
             <label className={labelCls}>Notas internas</label>
             <textarea value={form.notas} onChange={set("notas")} rows={2}
               className={inputCls + " resize-none"} placeholder="Notas para el profesor" />
+          </div>
+          <div className="col-span-2">
+            <label className={labelCls}>Tipo de turno</label>
+            <div className="flex gap-2 flex-wrap">
+              {(["suelto", "pack_semanal", "pack_mensual"] as const).map(tipo => {
+                const labels = { suelto: "Suelto", pack_semanal: "Pack semanal", pack_mensual: "Pack mensual" };
+                const sel = form.tipo_pedido === tipo;
+                return (
+                  <button key={tipo} type="button"
+                    onClick={() => setForm(f => ({ ...f, tipo_pedido: tipo }))}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-colors ${
+                      sel ? "border-[#7c3aed] bg-[#ede9fe] text-[#7c3aed]" : "border-[#e5e7eb] bg-white text-[#374151] hover:border-[#7c3aed]"
+                    }`}>
+                    {labels[tipo]}
+                  </button>
+                );
+              })}
+            </div>
+            {(() => {
+              const nivelEfectivo = form.nivel_educativo || turno.alumno?.nivel_educativo || null;
+              const precioHora = calcularPrecioHora(form.tipo_pedido, nivelEfectivo, precios);
+              if (precioHora == null) return null;
+              const durMin = Number(form.duracion_minutos);
+              const total = (durMin / 60) * precioHora;
+              return (
+                <p className="mt-1.5 text-xs font-semibold text-[#6b7280]">
+                  Precio estimado: <span className="font-black text-[#7c3aed]">{fmtPesos(total)}</span>
+                  <span className="text-[#9ca3af]"> ({fmtPesos(precioHora)}/h)</span>
+                </p>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -381,7 +439,7 @@ function EditPanel({ turno, onCerrar }: { turno: TurnoRow; onCerrar: () => void 
 
 /* ── TurnoCard ───────────────────────────────────────────────────────────── */
 
-function TurnoCard({ turno }: { turno: TurnoRow }) {
+function TurnoCard({ turno, precios }: { turno: TurnoRow; precios: PrecioRow[] }) {
   const [open, setOpen] = useState(false);
   const [showReprogramar, setShowReprogramar] = useState(false);
   const [showEditar, setShowEditar] = useState(false);
@@ -500,7 +558,7 @@ function TurnoCard({ turno }: { turno: TurnoRow }) {
                 ✏️ Editar turno y alumno
               </button>
             ) : (
-              <EditPanel turno={turno} onCerrar={() => setShowEditar(false)} />
+              <EditPanel turno={turno} precios={precios} onCerrar={() => setShowEditar(false)} />
             )}
           </div>
 
@@ -566,7 +624,7 @@ function TurnoCard({ turno }: { turno: TurnoRow }) {
 
 /* ── TurnosClient ────────────────────────────────────────────────────────── */
 
-export default function TurnosClient({ turnos }: { turnos: TurnoRow[] }) {
+export default function TurnosClient({ turnos, precios }: { turnos: TurnoRow[]; precios: PrecioRow[] }) {
   const [filtro, setFiltro] = useState<Filtro>("todos");
 
   const filtrados = turnos.filter(t => {
@@ -601,7 +659,7 @@ export default function TurnosClient({ turnos }: { turnos: TurnoRow[] }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtrados.map(t => <TurnoCard key={t.id} turno={t} />)}
+          {filtrados.map(t => <TurnoCard key={t.id} turno={t} precios={precios} />)}
         </div>
       )}
     </div>

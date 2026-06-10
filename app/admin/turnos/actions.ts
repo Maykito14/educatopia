@@ -23,6 +23,7 @@ export async function actualizarTurno(id: string, patch: {
   cobrado?: boolean;
   duracion_minutos?: number;
   medio_cobro?: "efectivo" | "transferencia" | null;
+  tipo_pedido?: "suelto" | "pack_semanal" | "pack_mensual";
 }) {
   const supabase = createServiceClient();
   // Si cambia duracion, actualizar el slot también
