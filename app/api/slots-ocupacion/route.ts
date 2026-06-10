@@ -19,7 +19,7 @@ export async function GET() {
   const profesorIds = (profs ?? []).map((p: { id: string }) => p.id);
   if (profesorIds.length === 0) return NextResponse.json({ ocupacion: [], bloqueos: [] });
 
-  const [ocupacionRes, bloqueosRes, preciosRes] = await Promise.all([
+  const [ocupacionRes, bloqueosRes, preciosRes, restriccionesRes] = await Promise.all([
     supabase.rpc("get_ocupacion_slots", {
       p_profesor_ids: profesorIds,
       p_desde: desde,
@@ -32,9 +32,13 @@ export async function GET() {
       .gte("fecha", desde)
       .lte("fecha", hasta),
     supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
+    supabase
+      .from("profesor_nivel_exclusivo")
+      .select("profesor_id, nivel, alumno:alumnos(id, nombre, apellido)"),
   ]);
 
   type BloqueoRow = { profesor_id: string; fecha: string; hora_inicio: string | null; hora_fin: string | null };
+  type RestriccionRow = { profesor_id: string; nivel: string; alumno: { id: string; nombre: string; apellido: string } | null };
 
   const bloqueos = (bloqueosRes.data ?? []).map((b: BloqueoRow) => ({
     profesor_id: b.profesor_id,
@@ -43,9 +47,24 @@ export async function GET() {
     hora_fin:    b.hora_fin    ? b.hora_fin.slice(0, 5)    : null,
   }));
 
+  // Agrupar restricciones por profesorId+nivel
+  const restriccionesMap = new Map<string, { nivel: string; alumnos: { id: string; nombre: string; apellido: string }[] }>();
+  for (const row of (restriccionesRes.data ?? []) as unknown as RestriccionRow[]) {
+    if (!row.alumno) continue;
+    const key = `${row.profesor_id}|${row.nivel}`;
+    if (!restriccionesMap.has(key)) restriccionesMap.set(key, { nivel: row.nivel, alumnos: [] });
+    restriccionesMap.get(key)!.alumnos.push(row.alumno);
+  }
+  const restricciones = Array.from(restriccionesMap.entries()).map(([key, val]) => ({
+    profesorId: key.split("|")[0],
+    nivel:      val.nivel,
+    alumnos:    val.alumnos,
+  }));
+
   return NextResponse.json({
-    ocupacion: ocupacionRes.data ?? [],
+    ocupacion:    ocupacionRes.data ?? [],
     bloqueos,
-    precios:   preciosRes.data ?? [],
+    precios:      preciosRes.data ?? [],
+    restricciones,
   });
 }

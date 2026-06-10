@@ -41,6 +41,42 @@ function slotEstaBloqueado(slot: MockSlot, bloqueos: BloqueoAPI[]): boolean {
   });
 }
 
+// ── Restricciones de profesor ─────────────────────────────────
+
+export interface ProfesorRestriccion {
+  profesorId: string;
+  nivel:      string;
+  alumnos:    { id: string; nombre: string; apellido: string }[];
+}
+
+export interface AlumnoIdentidad {
+  id?:       string;
+  nombre?:   string;
+  apellido?: string;
+}
+
+function normalizarStr(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
+
+function isProfesorPermitido(
+  profesorId: string,
+  nivel:      string,
+  alumno:     AlumnoIdentidad | undefined,
+  restricciones: ProfesorRestriccion[]
+): boolean {
+  const filtradas = restricciones.filter(r => r.profesorId === profesorId && r.nivel === nivel);
+  if (filtradas.length === 0) return true; // sin restricción
+  if (!alumno) return false;
+  return filtradas.some(r =>
+    r.alumnos.some(a => {
+      if (alumno.id) return a.id === alumno.id;
+      return normalizarStr(a.nombre) === normalizarStr(alumno.nombre ?? "") &&
+             normalizarStr(a.apellido) === normalizarStr(alumno.apellido ?? "");
+    })
+  );
+}
+
 // ── Precios ───────────────────────────────────────────────────
 
 export interface PrecioNivel {
@@ -71,9 +107,10 @@ interface TurnosDataCtx {
   loading: boolean;
   colegios: string[];
   precios: PrecioNivel[];
+  restricciones: ProfesorRestriccion[];
   getMateriasPorNivel:          (nivel: NivelEducativo) => string[];
-  getProfesoresPorMateriaYNivel: (materia: string, nivel: NivelEducativo) => ProfesorMock[];
-  getProfesoresPorNivel:         (nivel: NivelEducativo) => ProfesorMock[];
+  getProfesoresPorMateriaYNivel: (materia: string, nivel: NivelEducativo, alumno?: AlumnoIdentidad) => ProfesorMock[];
+  getProfesoresPorNivel:         (nivel: NivelEducativo, alumno?: AlumnoIdentidad) => ProfesorMock[];
   getSlotsPorProfesor:          (profesorId: string) => MockSlot[];
   getProfesor:                  (id: string) => ProfesorMock | undefined;
   getSlot:                      (slotId: string) => MockSlot | undefined;
@@ -93,12 +130,13 @@ export function useTurnosData(): TurnosDataCtx {
 // ── Provider ─────────────────────────────────────────────────
 
 export function TurnosDataProvider({ children }: { children: ReactNode }) {
-  const [loading, setLoading]       = useState(true);
-  const [colegios, setColegios]     = useState<string[]>([]);
-  const [profesores, setProfesores] = useState<ProfesorMock[]>([]);
-  const [precios, setPrecios]       = useState<PrecioNivel[]>([]);
-  const [ocupacion, setOcupacion]   = useState<SlotOcupacion[]>([]);
-  const [materiaMap, setMateriaMap] = useState<
+  const [loading, setLoading]           = useState(true);
+  const [colegios, setColegios]         = useState<string[]>([]);
+  const [profesores, setProfesores]     = useState<ProfesorMock[]>([]);
+  const [precios, setPrecios]           = useState<PrecioNivel[]>([]);
+  const [ocupacion, setOcupacion]       = useState<SlotOcupacion[]>([]);
+  const [restricciones, setRestricciones] = useState<ProfesorRestriccion[]>([]);
+  const [materiaMap, setMateriaMap]     = useState<
     Map<string, Map<NivelEducativo, ProfesorMock[]>>
   >(new Map());
 
@@ -113,6 +151,7 @@ export function TurnosDataProvider({ children }: { children: ReactNode }) {
         setBloqueos(json.bloqueos ?? []);
         // precios vienen de service role (la tabla requiere auth para leerse)
         if (Array.isArray(json.precios)) setPrecios(json.precios as PrecioNivel[]);
+        if (Array.isArray(json.restricciones)) setRestricciones(json.restricciones as ProfesorRestriccion[]);
       }
     } catch {
       // silencioso — los slots se muestran vacíos si falla
@@ -232,6 +271,7 @@ export function TurnosDataProvider({ children }: { children: ReactNode }) {
       loading,
       colegios,
       precios,
+      restricciones,
       getValorHora: (nivel) =>
         precios.find((p) => p.nivel === nivel)?.valor_hora ?? 0,
       getMateriasPorNivel: (nivel) => {
@@ -241,14 +281,19 @@ export function TurnosDataProvider({ children }: { children: ReactNode }) {
         }
         return names.sort();
       },
-      getProfesoresPorMateriaYNivel: (materia, nivel) =>
-        materiaMap.get(materia)?.get(nivel) ?? [],
-      getProfesoresPorNivel: (nivel) => {
+      getProfesoresPorMateriaYNivel: (materia, nivel, alumno) => {
+        const lista = materiaMap.get(materia)?.get(nivel) ?? [];
+        return lista.filter(p => isProfesorPermitido(p.id, nivel, alumno, restricciones));
+      },
+      getProfesoresPorNivel: (nivel, alumno) => {
         const result: ProfesorMock[] = [];
         const seen = new Set<string>();
         for (const nivelMap of materiaMap.values()) {
           for (const p of nivelMap.get(nivel) ?? []) {
-            if (!seen.has(p.id)) { seen.add(p.id); result.push(p); }
+            if (!seen.has(p.id) && isProfesorPermitido(p.id, nivel, alumno, restricciones)) {
+              seen.add(p.id);
+              result.push(p);
+            }
           }
         }
         return result.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -264,7 +309,7 @@ export function TurnosDataProvider({ children }: { children: ReactNode }) {
       getSlot:     (slotId) => allSlots.find((s) => s.id === slotId),
       refreshOcupacion:      loadOcupacion,
     }),
-    [loading, colegios, precios, materiaMap, allSlots, profesores, loadOcupacion, bloqueos]
+    [loading, colegios, precios, restricciones, materiaMap, allSlots, profesores, loadOcupacion, bloqueos]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

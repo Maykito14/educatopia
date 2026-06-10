@@ -83,11 +83,15 @@ export default function PasoSlot({ data, onChange, errors }: Props) {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
+  const alumnoIdentidad = data.nombre && data.apellido
+    ? { nombre: data.nombre, apellido: data.apellido }
+    : undefined;
+
   const profesores =
     data.materia && nivel
       ? esOtras
-        ? getProfesoresPorNivel(nivel as NivelEducativo)
-        : getProfesoresPorMateriaYNivel(data.materia, nivel as NivelEducativo)
+        ? getProfesoresPorNivel(nivel as NivelEducativo, alumnoIdentidad)
+        : getProfesoresPorMateriaYNivel(data.materia, nivel as NivelEducativo, alumnoIdentidad)
       : [];
 
   if (loading) {

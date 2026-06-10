@@ -15,6 +15,25 @@ type ProfesorDisp   = {
   materias_join: { materia: { nombre: string } | null }[];
 };
 type AlumnoExist    = { id: string; nombre: string; apellido: string; nivel_educativo: string | null; colegio: string | null };
+type ProfesorRestriccion = { profesorId: string; nivel: string; alumnos: { id: string; nombre: string; apellido: string }[] };
+
+function normalizarStr(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+}
+function isProfesorPermitidoMasivos(
+  profesorId: string,
+  alumno: { id?: string; nombre?: string; apellido?: string } | null,
+  restricciones: ProfesorRestriccion[]
+): boolean {
+  const filtradas = restricciones.filter(r => r.profesorId === profesorId);
+  if (filtradas.length === 0) return true;
+  if (!alumno) return false;
+  return filtradas.some(r => r.alumnos.some(a => {
+    if (alumno.id) return a.id === alumno.id;
+    return normalizarStr(a.nombre) === normalizarStr(alumno.nombre ?? "") &&
+           normalizarStr(a.apellido) === normalizarStr(alumno.apellido ?? "");
+  }));
+}
 
 const DIAS_FULL    = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 const DURACIONES: (60|90)[] = [60, 90];
@@ -56,11 +75,12 @@ function slotKey(s: SlotGenerado) {
 const inputCls = "w-full px-3 py-2 rounded-xl border-2 border-[#e5e7eb] text-sm font-semibold text-[#374151] focus:border-[#7c3aed] outline-none bg-white";
 
 export default function TurnosMasivosClient({
-  alumnos, profesores, colegios,
+  alumnos, profesores, colegios, restricciones,
 }: {
-  alumnos:   AlumnoExist[];
-  profesores: ProfesorDisp[];
-  colegios:  string[];
+  alumnos:       AlumnoExist[];
+  profesores:    ProfesorDisp[];
+  colegios:      string[];
+  restricciones: ProfesorRestriccion[];
 }) {
   // ── Modo alumno ──────────────────────────────────────────────
   const [modoAlumno, setModoAlumno]   = useState<"existente"|"nuevo">("existente");
@@ -93,7 +113,24 @@ export default function TurnosMasivosClient({
   const horasSeleccionadas = selectedSlots.reduce((acc,s) => acc + s.duracion_minutos/60, 0);
 
   const alumnoActual  = alumnos.find(a => a.id === alumnoId);
-  const profesor      = profesores.find(p => p.id === profId);
+
+  // Alumno efectivo para la verificación de restricciones
+  const alumnoParaRestriccion = modoAlumno === "existente"
+    ? (alumnoActual ? { id: alumnoActual.id } : null)
+    : (nuevoAlumno.nombre && nuevoAlumno.apellido
+        ? { nombre: nuevoAlumno.nombre, apellido: nuevoAlumno.apellido }
+        : null);
+
+  const profesoresFiltrados = profesores.filter(p =>
+    isProfesorPermitidoMasivos(p.id, alumnoParaRestriccion, restricciones)
+  );
+
+  // Si el profId actual no está en la lista filtrada, usar el primero disponible
+  const profIdEfectivo = profesoresFiltrados.find(p => p.id === profId)
+    ? profId
+    : (profesoresFiltrados[0]?.id ?? "");
+
+  const profesor = profesoresFiltrados.find(p => p.id === profIdEfectivo);
   const materiasProf  = (profesor?.materias_join ?? [])
     .map(mj => mj.materia?.nombre)
     .filter((n): n is string => !!n)
@@ -271,8 +308,8 @@ export default function TurnosMasivosClient({
         <div className="border-t border-[#f3f4f6] pt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-extrabold text-[#374151] mb-1">Profesor</label>
-            <select value={profId} onChange={e=>{setProfId(e.target.value);setGenerated(false);setMateria("");}} className={inputCls}>
-              {profesores.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}
+            <select value={profIdEfectivo} onChange={e=>{setProfId(e.target.value);setGenerated(false);setMateria("");}} className={inputCls}>
+              {profesoresFiltrados.map(p=><option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
           </div>
           <div>
@@ -336,7 +373,7 @@ export default function TurnosMasivosClient({
         <button
           type="button"
           onClick={generar}
-          disabled={!profId}
+          disabled={!profIdEfectivo}
           className="px-5 py-2.5 rounded-xl bg-[#7c3aed] text-white text-sm font-black hover:bg-[#6d28d9] transition-colors disabled:opacity-50"
         >
           Ver turnos disponibles →

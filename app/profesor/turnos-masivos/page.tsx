@@ -37,6 +37,25 @@ export default async function TurnosMasivosProfesorPage() {
 
   if (!profesorRes.data) redirect("/profesor");
 
+  // Restricciones para este profesor (solo sus propias filas)
+  type RestriccionRow = { nivel: string; alumno: { id: string; nombre: string; apellido: string } | null };
+  const restriccionesRes = await service
+    .from("profesor_nivel_exclusivo")
+    .select("nivel, alumno:alumnos(id, nombre, apellido)")
+    .eq("profesor_id", profesorRes.data.id);
+
+  const restriccionesMap = new Map<string, { id: string; nombre: string; apellido: string }[]>();
+  for (const row of (restriccionesRes.data ?? []) as unknown as RestriccionRow[]) {
+    if (!row.alumno) continue;
+    const list = restriccionesMap.get(row.nivel) ?? [];
+    list.push(row.alumno);
+    restriccionesMap.set(row.nivel, list);
+  }
+  // Si el profesor tiene restricciones, filtrar alumnos por nivel
+  const alumnosPermitidosIds = restriccionesMap.size > 0
+    ? new Set(Array.from(restriccionesMap.values()).flat().map(a => a.id))
+    : null; // null = sin restricción, mostrar todos
+
   return (
     <div className="space-y-4">
       <div>
@@ -52,7 +71,8 @@ export default async function TurnosMasivosProfesorPage() {
           .map((mj: { materia: { nombre: string } | null }) => mj.materia?.nombre)
           .filter((n: string | undefined): n is string => !!n)
           .sort()}
-        alumnos={(alumnosRes.data ?? []) as Parameters<typeof TurnosMasivosProfesorClient>[0]["alumnos"]}
+        alumnos={((alumnosRes.data ?? []) as Parameters<typeof TurnosMasivosProfesorClient>[0]["alumnos"])
+          .filter(a => alumnosPermitidosIds === null || alumnosPermitidosIds.has(a.id))}
         colegios={(colegiosRes.data ?? []).map((c: { nombre: string }) => c.nombre)}
       />
     </div>
