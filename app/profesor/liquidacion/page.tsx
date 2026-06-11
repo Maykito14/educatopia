@@ -18,7 +18,7 @@ export default async function LiquidacionProfesorPage() {
       .single<{ id: string }>(),
     service
       .from("precios")
-      .select("nivel, valor_hora, porcentaje_profesor"),
+      .select("nivel, valor_hora, porcentaje_profesor, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
   ]);
 
   if (!profesorRes.data) redirect("/profesor");
@@ -33,7 +33,7 @@ export default async function LiquidacionProfesorPage() {
       </div>
       <LiquidacionProfesorClient
         profesorId={profesorRes.data.id}
-        precios={(preciosRes.data ?? []) as { nivel: string; valor_hora: number; porcentaje_profesor: number }[]}
+        precios={(preciosRes.data ?? []) as Parameters<typeof LiquidacionProfesorClient>[0]["precios"]}
       />
     </div>
   );

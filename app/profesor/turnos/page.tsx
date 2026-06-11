@@ -31,7 +31,7 @@ export default async function MisTurnosPage() {
       .order("created_at", { ascending: false }),
     service
       .from("precios")
-      .select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
+      .select("nivel, valor_hora, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
   ]);
 
   return (

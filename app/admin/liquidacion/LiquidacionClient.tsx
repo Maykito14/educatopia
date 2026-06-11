@@ -5,7 +5,8 @@ import { marcarPagados } from "./actions";
 
 type Precio = {
   nivel: string; valor_hora: number; porcentaje_profesor: number;
-  pack_semanal_precio: number | null; pack_mensual_precio: number | null;
+  pack_semanal_precio: number | null; pack_semanal_horas: number | null;
+  pack_mensual_precio: number | null; pack_mensual_horas: number | null;
 };
 type TurnoLiq = {
   id: string; materia: string; anio: string; colegio: string; pagado: boolean;
@@ -56,11 +57,15 @@ export default function LiquidacionClient({
 
   function valorHoraTurno(t: TurnoLiq): number {
     const nivel  = t.alumno?.nivel_educativo ?? "secundario";
-    const precio = precioMap[nivel] ?? precioMap["secundario"];
-    if (!precio) return 0;
-    if (t.tipo_pedido === "pack_semanal") return precio.pack_semanal_precio ?? precio.valor_hora;
-    if (t.tipo_pedido === "pack_mensual") return precio.pack_mensual_precio ?? precio.valor_hora;
-    return precio.valor_hora;
+    const p = precioMap[nivel] ?? precioMap["secundario"];
+    if (!p) return 0;
+    if (t.tipo_pedido === "pack_semanal" && p.pack_semanal_precio && p.pack_semanal_horas) {
+      return p.pack_semanal_precio / p.pack_semanal_horas;
+    }
+    if (t.tipo_pedido === "pack_mensual" && p.pack_mensual_precio && p.pack_mensual_horas) {
+      return p.pack_mensual_precio / p.pack_mensual_horas;
+    }
+    return p.valor_hora;
   }
 
   function calcTurno(t: TurnoLiq) {

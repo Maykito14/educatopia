@@ -2,13 +2,18 @@
 
 import { useState } from "react";
 
-type Precio = { nivel: string; valor_hora: number; porcentaje_profesor: number };
+type Precio = {
+  nivel: string; valor_hora: number; porcentaje_profesor: number;
+  pack_semanal_precio: number | null; pack_semanal_horas: number | null;
+  pack_mensual_precio: number | null; pack_mensual_horas: number | null;
+};
 type TurnoLiq = {
   id: string;
   materia: string;
   anio: string;
   colegio: string;
   pagado: boolean;
+  tipo_pedido: "suelto" | "pack_semanal" | "pack_mensual" | null;
   slot: { fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number } | null;
   alumno: { nombre: string; apellido: string; nivel_educativo: string | null } | null;
 };
@@ -39,9 +44,20 @@ function fmtMoney(n: number) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
 }
 
+function valorHoraEfectiva(t: TurnoLiq, p: Precio): number {
+  if (t.tipo_pedido === "pack_semanal" && p.pack_semanal_precio && p.pack_semanal_horas) {
+    return p.pack_semanal_precio / p.pack_semanal_horas;
+  }
+  if (t.tipo_pedido === "pack_mensual" && p.pack_mensual_precio && p.pack_mensual_horas) {
+    return p.pack_mensual_precio / p.pack_mensual_horas;
+  }
+  return p.valor_hora;
+}
+
 function TurnoRow({ t, precio }: { t: TurnoLiq; precio: Precio }) {
   const horas = (t.slot?.duracion_minutos ?? 60) / 60;
-  const monto = horas * precio.valor_hora * (precio.porcentaje_profesor / 100);
+  const vh    = valorHoraEfectiva(t, precio);
+  const monto = horas * vh * (precio.porcentaje_profesor / 100);
 
   return (
     <tr className="border-b border-[#f9fafb]">
@@ -65,7 +81,7 @@ function TurnoRow({ t, precio }: { t: TurnoLiq; precio: Precio }) {
       <td className="px-3 py-2.5 font-black text-[#059669] text-right">
         {fmtMoney(monto)}
         <br />
-        <span className="text-[9px] font-semibold text-[#9ca3af]">{precio.porcentaje_profesor}% de {fmtMoney(precio.valor_hora)}/h</span>
+        <span className="text-[9px] font-semibold text-[#9ca3af]">{precio.porcentaje_profesor}% de {fmtMoney(vh)}/h</span>
       </td>
       <td className="px-3 py-2.5 text-center">
         {t.pagado
@@ -114,15 +130,15 @@ export default function LiquidacionProfesorClient({
     setLoaded(false);
   }
 
+  function calcMonto(t: TurnoLiq) {
+    const p = getPrecio(t.alumno?.nivel_educativo ?? null);
+    const vh = valorHoraEfectiva(t, p);
+    return (t.slot?.duracion_minutos ?? 60) / 60 * vh * (p.porcentaje_profesor / 100);
+  }
+
   const totalHoras = turnos.reduce((acc, t) => acc + (t.slot?.duracion_minutos ?? 60) / 60, 0);
-  const totalMonto = turnos.reduce((acc, t) => {
-    const p = getPrecio(t.alumno?.nivel_educativo ?? null);
-    return acc + (t.slot?.duracion_minutos ?? 60) / 60 * p.valor_hora * (p.porcentaje_profesor / 100);
-  }, 0);
-  const totalPagado = turnos.filter(t => t.pagado).reduce((acc, t) => {
-    const p = getPrecio(t.alumno?.nivel_educativo ?? null);
-    return acc + (t.slot?.duracion_minutos ?? 60) / 60 * p.valor_hora * (p.porcentaje_profesor / 100);
-  }, 0);
+  const totalMonto = turnos.reduce((acc, t) => acc + calcMonto(t), 0);
+  const totalPagado = turnos.filter(t => t.pagado).reduce((acc, t) => acc + calcMonto(t), 0);
   const totalPendiente = totalMonto - totalPagado;
 
   const inputCls = "px-3 py-2 rounded-xl border-2 border-[#e5e7eb] text-sm font-semibold text-[#374151] focus:border-[#7c3aed] outline-none bg-white";

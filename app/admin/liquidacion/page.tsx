@@ -5,7 +5,7 @@ export default async function LiquidacionPage() {
   const supabase = createServiceClient();
   const [profesoresRes, preciosRes] = await Promise.all([
     supabase.from("profesores").select("id, nombre").eq("activo",true).order("nombre"),
-    supabase.from("precios").select("nivel, valor_hora, porcentaje_profesor, pack_semanal_precio, pack_mensual_precio").order("nivel"),
+    supabase.from("precios").select("nivel, valor_hora, porcentaje_profesor, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas").order("nivel"),
   ]);
   return (
     <div className="space-y-4">

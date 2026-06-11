@@ -9,7 +9,7 @@ export default async function CobranzasPage() {
       slot:slots(fecha, duracion_minutos),
       alumno:alumnos(id, nombre, apellido, nivel_educativo, telefono_contacto)
     `).eq("asistio",true).eq("cobrado",false).neq("estado","cancelado").order("created_at"),
-    supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
+    supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
   ]);
 
   return (

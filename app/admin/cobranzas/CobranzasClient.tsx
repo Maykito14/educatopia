@@ -5,7 +5,8 @@ import { marcarCobrados } from "./actions";
 
 type Precio = {
   nivel: string; valor_hora: number;
-  pack_semanal_precio: number | null; pack_mensual_precio: number | null;
+  pack_semanal_precio: number | null; pack_semanal_horas: number | null;
+  pack_mensual_precio: number | null; pack_mensual_horas: number | null;
 };
 type TurnoCob = {
   id: string; materia: string; anio: string; cobrado: boolean;
@@ -30,8 +31,12 @@ export default function CobranzasClient({
   function valorHoraTurno(t: TurnoCob): number {
     const p = precioMap[t.alumno?.nivel_educativo ?? "secundario"];
     if (!p) return 0;
-    if (t.tipo_pedido === "pack_semanal") return p.pack_semanal_precio ?? p.valor_hora;
-    if (t.tipo_pedido === "pack_mensual") return p.pack_mensual_precio ?? p.valor_hora;
+    if (t.tipo_pedido === "pack_semanal" && p.pack_semanal_precio && p.pack_semanal_horas) {
+      return p.pack_semanal_precio / p.pack_semanal_horas;
+    }
+    if (t.tipo_pedido === "pack_mensual" && p.pack_mensual_precio && p.pack_mensual_horas) {
+      return p.pack_mensual_precio / p.pack_mensual_horas;
+    }
     return p.valor_hora;
   }
 

@@ -8,7 +8,9 @@ type PrecioRow = {
   nivel: string;
   valor_hora: number;
   pack_semanal_precio: number | null;
+  pack_semanal_horas: number | null;
   pack_mensual_precio: number | null;
+  pack_mensual_horas: number | null;
 };
 
 type TurnoEdit = {
@@ -30,8 +32,12 @@ function calcularPrecioHora(
   if (!nivel) return null;
   const p = precios.find(pr => pr.nivel === nivel);
   if (!p) return null;
-  if (tipo === "pack_semanal") return p.pack_semanal_precio ?? p.valor_hora;
-  if (tipo === "pack_mensual") return p.pack_mensual_precio ?? p.valor_hora;
+  if (tipo === "pack_semanal" && p.pack_semanal_precio && p.pack_semanal_horas) {
+    return p.pack_semanal_precio / p.pack_semanal_horas;
+  }
+  if (tipo === "pack_mensual" && p.pack_mensual_precio && p.pack_mensual_horas) {
+    return p.pack_mensual_precio / p.pack_mensual_horas;
+  }
   return p.valor_hora;
 }
 

@@ -12,7 +12,7 @@ export default async function TurnosAdminPage() {
       alumno:alumnos(nombre, apellido, nivel_educativo)
     `).order("created_at", { ascending: false }),
     supabase.from("profesores").select("id, nombre").eq("activo",true).order("nombre"),
-    supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
+    supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
   ]);
 
   // Resolver nombre del creador para cada turno
