@@ -139,7 +139,7 @@ export default function LiquidacionClient({
                 <thead>
                   <tr className="border-b border-[#f3f4f6]">
                     <th className="px-4 py-2 w-8"><input type="checkbox" checked={selected.size===turnos.filter(t=>!t.pagado).length} onChange={e=>setSelected(e.target.checked?new Set(turnos.filter(t=>!t.pagado).map(t=>t.id)):new Set())} className="rounded"/></th>
-                    {["Fecha","Alumno","Materia","Nivel","Duración","Valor hora","% Prof.","Monto","Estado"].map(h=>(
+                    {["Fecha","Alumno","Materia","Nivel","Duración","Valor hora","Valor Total","% Prof.","Monto","Estado"].map(h=>(
                       <th key={h} className="px-3 py-2 text-left text-xs font-extrabold text-[#9ca3af] uppercase">{h}</th>
                     ))}
                   </tr>
@@ -167,6 +167,9 @@ export default function LiquidacionClient({
                         <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{horas.toFixed(1)} hs</td>
                         <td className="px-3 py-2.5 text-xs font-semibold text-[#374151] whitespace-nowrap">
                           {fmtMoney(vh)}{packTag}
+                        </td>
+                        <td className="px-3 py-2.5 font-extrabold text-[#1e1b4b] whitespace-nowrap">
+                          {fmtMoney(vh * horas)}
                         </td>
                         <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{precio?.porcentaje_profesor ?? "—"}%</td>
                         <td className="px-3 py-2.5 font-extrabold text-[#059669]">{fmtMoney(monto)}</td>
