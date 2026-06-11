@@ -7,6 +7,7 @@ import {
   type SlotGenerado,
   type NuevoAlumnoData,
 } from "./actions";
+import { getEspecialidades } from "@/lib/colegio-especialidades";
 
 type Disponibilidad = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
 type ProfesorDisp   = {
@@ -97,6 +98,7 @@ export default function TurnosMasivosClient({
   const [profId, setProfId]       = useState(profesores[0]?.id ?? "");
   const [materia, setMateria]     = useState("");
   const [anio, setAnio]           = useState("");
+  const [especialidad, setEspecialidad] = useState("");
   const [semana, setSemana]       = useState(() => getMon(new Date()).toISOString().slice(0,10));
 
   // ── Pack ─────────────────────────────────────────────────────
@@ -140,10 +142,10 @@ export default function TurnosMasivosClient({
     : (profesoresFiltrados[0]?.id ?? "");
 
   const profesor = profesoresFiltrados.find(p => p.id === profIdEfectivo);
-  const materiasProf  = (profesor?.materias_join ?? [])
+  const materiasProf  = [...new Set((profesor?.materias_join ?? [])
     .map(mj => mj.materia?.nombre)
     .filter((n): n is string => !!n)
-    .sort();
+  )].sort();
 
   // Colegio a usar según modo
   const colegioParaTurno = modoAlumno === "nuevo"
@@ -179,10 +181,22 @@ export default function TurnosMasivosClient({
     setSelSlots(new Set());
   }
 
+  // Nivel del alumno seleccionado (para saber si mostrar especialidad)
+  const nivelAlumnoActual = modoAlumno === "existente"
+    ? (alumnoActual?.nivel_educativo ?? "")
+    : (nuevoAlumno.nivel_educativo ?? "");
+  const colegioActual = modoAlumno === "existente"
+    ? (alumnoActual?.colegio ?? "")
+    : nuevoAlumno.colegio;
+  const especialidadesDisponibles = nivelAlumnoActual === "secundario"
+    ? getEspecialidades(colegioActual)
+    : [];
+
   function puedeCrear() {
     if (selectedSlots.length === 0 || !materia || !anio || pending) return false;
     const minHorasPack = tipoPack === "semanal" ? 3 : 12;
     if (tienePack && horasSeleccionadas < minHorasPack) return false;
+    if (especialidadesDisponibles.length > 0 && !especialidad) return false;
     if (modoAlumno === "existente") return !!alumnoId;
     return !!(nuevoAlumno.nombre.trim() && nuevoAlumno.apellido.trim());
   }
@@ -191,9 +205,9 @@ export default function TurnosMasivosClient({
     startTrans(async () => {
       let r: { creados: number; errores: number; error?: string };
       if (modoAlumno === "existente") {
-        r = await crearTurnosMasivos(alumnoId, materia, anio, colegioParaTurno, selectedSlots, tienePack);
+        r = await crearTurnosMasivos(alumnoId, materia, anio, colegioParaTurno, especialidad, selectedSlots, tienePack);
       } else {
-        r = await crearAlumnoYTurnosMasivos(nuevoAlumno, materia, anio, selectedSlots, tienePack);
+        r = await crearAlumnoYTurnosMasivos(nuevoAlumno, materia, anio, especialidad, selectedSlots, tienePack);
       }
       setResult(r);
       if (!r.error) setGenerated(false);
@@ -342,6 +356,23 @@ export default function TurnosMasivosClient({
             <input type="text" placeholder="Ej: 3° año" value={anio} onChange={e=>setAnio(e.target.value)} className={inputCls}/>
           </div>
         </div>
+
+        {/* Especialidad — solo si el alumno es de secundario y el colegio tiene especialidades */}
+        {especialidadesDisponibles.length > 0 && (
+          <div>
+            <label className="block text-xs font-extrabold text-[#374151] mb-1">
+              Especialidad <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={especialidad}
+              onChange={e => setEspecialidad(e.target.value)}
+              className={inputCls}
+            >
+              <option value="">— Seleccioná la especialidad —</option>
+              {especialidadesDisponibles.map(esp => <option key={esp} value={esp}>{esp}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Pack */}
         <div className="border-t border-[#f3f4f6] pt-4 flex flex-col gap-3">

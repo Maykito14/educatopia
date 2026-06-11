@@ -36,6 +36,7 @@ async function _crearTurnos(
   materia: string,
   anio: string,
   colegio: string,
+  especialidad: string,
   slots: SlotGenerado[],
   profesorId: string,
   tienePack: boolean,
@@ -58,6 +59,7 @@ async function _crearTurnos(
 
     const { error: turnoErr } = await supabase.from("turnos").insert({
       slot_id: slot.id, alumno_id: alumnoId, materia, anio, colegio,
+      especialidad: especialidad || null,
       estado: "confirmado",
       confirmado_por_profesor: false,
       solicitado_por: solicitadoPor,
@@ -88,13 +90,13 @@ async function notificarTurnos(
 
 export async function crearTurnosMasivosProfesor(
   alumnoId: string, materia: string, anio: string, colegio: string,
-  slots: SlotGenerado[], tienePack: boolean
+  especialidad: string, slots: SlotGenerado[], tienePack: boolean
 ): Promise<{ creados: number; errores: number; error?: string }> {
   const auth = await getMyAuth();
   if (!auth) return { creados: 0, errores: 0, error: "No autorizado" };
 
   const supabase = createServiceClient();
-  const result = await _crearTurnos(supabase, alumnoId, materia, anio, colegio, slots, auth.profesorId, tienePack, auth.profileId);
+  const result = await _crearTurnos(supabase, alumnoId, materia, anio, colegio, especialidad, slots, auth.profesorId, tienePack, auth.profileId);
   await notificarTurnos(supabase, alumnoId, result.creados);
   revalidatePath("/profesor/turnos-masivos");
   revalidatePath("/profesor");
@@ -103,7 +105,7 @@ export async function crearTurnosMasivosProfesor(
 
 export async function crearAlumnoYTurnosMasivosProfesor(
   alumnoData: NuevoAlumnoData, materia: string, anio: string,
-  slots: SlotGenerado[], tienePack: boolean
+  especialidad: string, slots: SlotGenerado[], tienePack: boolean
 ): Promise<{ creados: number; errores: number; error?: string }> {
   const auth = await getMyAuth();
   if (!auth) return { creados: 0, errores: 0, error: "No autorizado" };
@@ -127,7 +129,7 @@ export async function crearAlumnoYTurnosMasivosProfesor(
     return { creados: 0, errores: 0, error: alumnoErr?.message ?? "Error al crear alumno" };
   }
 
-  const result = await _crearTurnos(supabase, alumno.id, materia, anio, alumnoData.colegio, slots, auth.profesorId, tienePack, auth.profileId);
+  const result = await _crearTurnos(supabase, alumno.id, materia, anio, alumnoData.colegio, especialidad, slots, auth.profesorId, tienePack, auth.profileId);
   await notificarTurnos(supabase, alumno.id, result.creados);
   revalidatePath("/profesor/turnos-masivos");
   revalidatePath("/profesor");

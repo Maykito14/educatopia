@@ -78,6 +78,7 @@ export async function submitTurno(
           materia:      formData.materia,
           anio:         formData.anioGrado || "",
           colegio:      formData.colegio,
+          especialidad: formData.especialidad || null,
           objetivo:     (formData.objetivo as string) || null,
           estado:       "pendiente",
           notas:        formData.comentarios || null,

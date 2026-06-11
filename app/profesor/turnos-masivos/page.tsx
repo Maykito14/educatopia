@@ -48,10 +48,10 @@ export default async function TurnosMasivosProfesorPage() {
       <TurnosMasivosProfesorClient
         profesorId={profesorRes.data.id}
         disponibilidad={profesorRes.data.disponibilidad}
-        materias={(profesorRes.data.materias_join ?? [])
+        materias={[...new Set((profesorRes.data.materias_join ?? [])
           .map((mj: { materia: { nombre: string } | null }) => mj.materia?.nombre)
           .filter((n: string | undefined): n is string => !!n)
-          .sort()}
+        )].sort()}
         alumnos={(alumnosRes.data ?? []) as Parameters<typeof TurnosMasivosProfesorClient>[0]["alumnos"]}
         colegios={(colegiosRes.data ?? []).map((c: { nombre: string }) => c.nombre)}
       />

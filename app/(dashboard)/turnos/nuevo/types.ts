@@ -19,6 +19,7 @@ export interface FormData {
   nivelEducativo: NivelEducativo | "";
   anioGrado: string;
   colegio: string;          // valor del dropdown
+  especialidad: string;     // requerida para secundario (depende del colegio)
   // Paso 2 — estudio
   materia: string;
   objetivo: Objetivo | "";
@@ -44,6 +45,7 @@ export const FORM_INITIAL: FormData = {
   nivelEducativo: "",
   anioGrado: "",
   colegio: "",
+  especialidad: "",
   materia: "",
   objetivo: "",
   tipoPedido: "suelto",
@@ -85,5 +87,5 @@ export interface MockSlot {
   hora_fin: string;
   duracion_minutos: 60 | 90 | 120;
   capacidad_max: number;
-  turnos: { materia: string; anio: string; colegio: string }[];
+  turnos: { materia: string; anio: string; colegio: string; especialidad?: string | null }[];
 }

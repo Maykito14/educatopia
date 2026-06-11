@@ -12,6 +12,7 @@ import { FORM_INITIAL, type FormData } from "./types";
 import { formatFecha } from "./mock-data";
 import { TurnosDataProvider, useTurnosData } from "./data-context";
 import { submitTurno } from "@/app/actions/submit-turno";
+import { getEspecialidades } from "@/lib/colegio-especialidades";
 
 type Errors = Partial<Record<keyof FormData, string>>;
 
@@ -52,6 +53,11 @@ function validate(step: number, data: FormData, packMinutos = 0): Errors {
 
     if (!data.colegio)          e.colegio        = "Seleccioná el colegio.";
     if (!data.nivelEducativo)   e.nivelEducativo = "Seleccioná el nivel educativo.";
+
+    // Especialidad: requerida para secundario en colegios con especialidades
+    if (data.nivelEducativo === "secundario" && data.colegio &&
+        getEspecialidades(data.colegio).length > 0 && !data.especialidad)
+      e.especialidad = "Seleccioná la especialidad.";
   }
 
   if (step === 2) {

@@ -7,6 +7,7 @@ import {
   type SlotGenerado,
   type NuevoAlumnoData,
 } from "./actions";
+import { getEspecialidades } from "@/lib/colegio-especialidades";
 
 type Disponibilidad = { dia_semana: number; hora_inicio: string; hora_fin: string; activo: boolean };
 type AlumnoExist    = { id: string; nombre: string; apellido: string; nivel_educativo: string | null; colegio: string | null };
@@ -67,8 +68,9 @@ export default function TurnosMasivosProfesorClient({
     nombre: "", apellido: "", edad: "", nivel_educativo: "", colegio: "", dni: "",
   });
 
-  const [materia, setMateria] = useState("");
-  const [anio, setAnio]       = useState("");
+  const [materia, setMateria]           = useState("");
+  const [anio, setAnio]                 = useState("");
+  const [especialidad, setEspecialidad] = useState("");
   const [semana, setSemana]   = useState(() => getMon(new Date()).toISOString().slice(0,10));
 
   const [tienePack, setTienePack] = useState(false);
@@ -97,10 +99,18 @@ export default function TurnosMasivosProfesorClient({
     setSelSlots(prev => { const s = new Set(prev); s.has(key) ? s.delete(key) : s.add(key); return s; });
   }
 
+  const nivelAlumnoActual = modoAlumno === "existente"
+    ? (alumnoActual?.nivel_educativo ?? "")
+    : (nuevoAlumno.nivel_educativo ?? "");
+  const especialidadesDisponibles = nivelAlumnoActual === "secundario"
+    ? getEspecialidades(colegioParaTurno)
+    : [];
+
   function puedeCrear() {
     if (selectedSlots.length === 0 || !materia || !anio || pending) return false;
     const minHorasPack = tipoPack === "semanal" ? 3 : 12;
     if (tienePack && horasSeleccionadas < minHorasPack) return false;
+    if (especialidadesDisponibles.length > 0 && !especialidad) return false;
     if (modoAlumno === "existente") return !!alumnoId;
     return !!(nuevoAlumno.nombre.trim() && nuevoAlumno.apellido.trim());
   }
@@ -109,9 +119,9 @@ export default function TurnosMasivosProfesorClient({
     startTrans(async () => {
       let r: { creados: number; errores: number; error?: string };
       if (modoAlumno === "existente") {
-        r = await crearTurnosMasivosProfesor(alumnoId, materia, anio, colegioParaTurno, selectedSlots, tienePack);
+        r = await crearTurnosMasivosProfesor(alumnoId, materia, anio, colegioParaTurno, especialidad, selectedSlots, tienePack);
       } else {
-        r = await crearAlumnoYTurnosMasivosProfesor(nuevoAlumno, materia, anio, selectedSlots, tienePack);
+        r = await crearAlumnoYTurnosMasivosProfesor(nuevoAlumno, materia, anio, especialidad, selectedSlots, tienePack);
       }
       setResult(r);
       if (!r.error) setGenerated(false);
@@ -193,7 +203,7 @@ export default function TurnosMasivosProfesorClient({
               <div>
                 <label className="block text-xs font-bold text-[#9ca3af] mb-1">Colegio</label>
                 <select value={nuevoAlumno.colegio}
-                  onChange={e => setNuevoAlumno(p => ({...p, colegio: e.target.value}))} className={inputCls}>
+                  onChange={e => { setNuevoAlumno(p => ({...p, colegio: e.target.value})); setEspecialidad(""); }} className={inputCls}>
                   <option value="">— Seleccioná —</option>
                   {colegios.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -227,6 +237,19 @@ export default function TurnosMasivosProfesorClient({
               onChange={e=>setAnio(e.target.value)} className={inputCls}/>
           </div>
         </div>
+
+        {/* Especialidad — solo si el alumno es de secundario y el colegio tiene especialidades */}
+        {especialidadesDisponibles.length > 0 && (
+          <div>
+            <label className="block text-xs font-extrabold text-[#374151] mb-1">
+              Especialidad <span className="text-red-500">*</span>
+            </label>
+            <select value={especialidad} onChange={e => setEspecialidad(e.target.value)} className={inputCls}>
+              <option value="">— Seleccioná la especialidad —</option>
+              {especialidadesDisponibles.map(esp => <option key={esp} value={esp}>{esp}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Pack */}
         <div className="border-t border-[#f3f4f6] pt-4 flex flex-col gap-3">

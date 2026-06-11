@@ -21,7 +21,7 @@ interface SlotOcupacion {
   hora_inicio:      string;
   duracion_minutos: number;
   ocupados:         number;
-  grupos:           { materia: string; anio: string; colegio: string }[];
+  grupos:           { materia: string; anio: string; colegio: string; especialidad?: string | null }[];
 }
 
 interface BloqueoAPI {

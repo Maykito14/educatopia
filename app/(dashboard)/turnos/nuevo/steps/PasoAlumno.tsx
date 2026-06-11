@@ -5,6 +5,7 @@ import Field, { inputClass, inputErrorClass } from "../components/Field";
 import { OptionCard } from "../components/Chip";
 import { useTurnosData } from "../data-context";
 import { buscarAlumnoPorDNI } from "../actions";
+import { getEspecialidades } from "@/lib/colegio-especialidades";
 import type { FormData, NivelEducativo } from "../types";
 
 interface Props {
@@ -28,7 +29,7 @@ export default function PasoAlumno({ data, onChange, errors }: Props) {
   const [buscandoDNI, setBuscandoDNI] = useState(false);
 
   function handleNivel(nivel: NivelEducativo) {
-    onChange({ nivelEducativo: nivel, materia: "", profesorId: "", slotId: "" });
+    onChange({ nivelEducativo: nivel, especialidad: "", materia: "", profesorId: "", slotId: "" });
   }
 
   // Filtra input para que solo acepte letras
@@ -165,7 +166,7 @@ export default function PasoAlumno({ data, onChange, errors }: Props) {
       <Field label="Colegio / Institución" required error={errors.colegio}>
         <select
           value={data.colegio}
-          onChange={(e) => onChange({ colegio: e.target.value })}
+          onChange={(e) => onChange({ colegio: e.target.value, especialidad: "" })}
           className={`${errors.colegio ? inputErrorClass : inputClass} cursor-pointer`}
         >
           <option value="">Seleccioná el colegio...</option>
@@ -189,6 +190,22 @@ export default function PasoAlumno({ data, onChange, errors }: Props) {
           ))}
         </div>
       </Field>
+
+      {/* Especialidad — solo para secundario con colegios que tienen especialidades */}
+      {data.nivelEducativo === "secundario" && data.colegio && getEspecialidades(data.colegio).length > 0 && (
+        <Field label="Especialidad" required error={errors.especialidad}>
+          <select
+            value={data.especialidad}
+            onChange={(e) => onChange({ especialidad: e.target.value })}
+            className={`${errors.especialidad ? inputErrorClass : inputClass} cursor-pointer`}
+          >
+            <option value="">Seleccioná la especialidad...</option>
+            {getEspecialidades(data.colegio).map((esp) => (
+              <option key={esp} value={esp}>{esp}</option>
+            ))}
+          </select>
+        </Field>
+      )}
     </div>
   );
 }

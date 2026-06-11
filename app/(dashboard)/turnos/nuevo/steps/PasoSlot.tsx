@@ -17,7 +17,8 @@ function tieneGrupo(slot: MockSlot, data: FormData) {
     (t) =>
       t.materia === data.materia &&
       t.anio === data.anioGrado &&
-      t.colegio === data.colegio
+      t.colegio === data.colegio &&
+      (data.nivelEducativo !== "secundario" || (t.especialidad ?? "") === data.especialidad)
   );
 }
 
