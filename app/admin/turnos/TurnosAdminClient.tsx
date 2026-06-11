@@ -252,6 +252,9 @@ function TurnoRow({ t, profesores, precios }: { t: TurnoEdit; profesores: {id:st
   const [showReprogramar, setShowReprogramar] = useState(false);
   const [showEliminar, setShowEliminar] = useState(false);
   const [errorEliminar, setErrorEliminar] = useState("");
+  const [tipoPedido, setTipoPedido] = useState<"suelto"|"pack_semanal"|"pack_mensual">(
+    t.tipo_pedido ?? "suelto"
+  );
   const profNombre = profesores.find(p=>p.id===t.slot?.profesor_id)?.nombre ?? "—";
 
   function update(patch: Parameters<typeof actualizarTurno>[1]) {
@@ -297,21 +300,24 @@ function TurnoRow({ t, profesores, precios }: { t: TurnoEdit; profesores: {id:st
               <option value={120}>120 min</option>
             </select>
             <select
-              value={t.tipo_pedido ?? "suelto"}
+              value={tipoPedido}
               disabled={pending}
-              onChange={e => update({ tipo_pedido: e.target.value as "suelto"|"pack_semanal"|"pack_mensual" })}
+              onChange={e => {
+                const v = e.target.value as "suelto"|"pack_semanal"|"pack_mensual";
+                setTipoPedido(v);
+                update({ tipo_pedido: v });
+              }}
               className="text-xs font-extrabold rounded-lg border border-[#e5e7eb] px-2 py-1 focus:border-[#7c3aed] outline-none bg-white">
               <option value="suelto">Suelto</option>
               <option value="pack_semanal">Pack semanal</option>
               <option value="pack_mensual">Pack mensual</option>
             </select>
             {(() => {
-              const tipo = (t.tipo_pedido ?? "suelto") as "suelto"|"pack_semanal"|"pack_mensual";
-              const ph = calcularPrecioHora(tipo, t.alumno?.nivel_educativo ?? null, precios);
+              const ph = calcularPrecioHora(tipoPedido, t.alumno?.nivel_educativo ?? null, precios);
               if (ph == null) return null;
               const dur = t.slot?.duracion_minutos ?? 60;
               return (
-                <span className="text-[10px] font-semibold text-[#7c3aed]">{fmtPesos((dur / 60) * ph)}</span>
+                <span className="text-[10px] font-semibold text-[#7c3aed]">{fmtPesos((dur / 60) * ph)}/turno</span>
               );
             })()}
           </div>

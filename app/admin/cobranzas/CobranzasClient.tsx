@@ -3,9 +3,13 @@
 import { useState, useTransition } from "react";
 import { marcarCobrados } from "./actions";
 
-type Precio = { nivel: string; valor_hora: number };
+type Precio = {
+  nivel: string; valor_hora: number;
+  pack_semanal_precio: number | null; pack_mensual_precio: number | null;
+};
 type TurnoCob = {
   id: string; materia: string; anio: string; cobrado: boolean;
+  tipo_pedido: "suelto" | "pack_semanal" | "pack_mensual" | null;
   slot: { fecha: string; duracion_minutos: number } | null;
   alumno: { id: string; nombre: string; apellido: string; nivel_educativo: string | null; telefono_contacto: string | null } | null;
 };
@@ -18,10 +22,18 @@ export default function CobranzasClient({
   turnos, precios,
 }: { turnos: TurnoCob[]; precios: Precio[] }) {
   const [pending, startTrans] = useTransition();
-  const [selected, setSelected] = useState<Set<string>>(new Set(turnos.map(t=>t.id)));
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const precioMap: Record<string,number> = {};
-  precios.forEach(p => { precioMap[p.nivel] = p.valor_hora; });
+  const precioMap: Record<string, Precio> = {};
+  precios.forEach(p => { precioMap[p.nivel] = p; });
+
+  function valorHoraTurno(t: TurnoCob): number {
+    const p = precioMap[t.alumno?.nivel_educativo ?? "secundario"];
+    if (!p) return 0;
+    if (t.tipo_pedido === "pack_semanal") return p.pack_semanal_precio ?? p.valor_hora;
+    if (t.tipo_pedido === "pack_mensual") return p.pack_mensual_precio ?? p.valor_hora;
+    return p.valor_hora;
+  }
 
   // Agrupar por alumno
   const grupos: Record<string, { alumno: TurnoCob["alumno"]; turnos: TurnoCob[] }> = {};
@@ -34,10 +46,9 @@ export default function CobranzasClient({
   function calcGrupo(ts: TurnoCob[]) {
     let horas = 0; let monto = 0;
     for (const t of ts) {
-      const nivel = t.alumno?.nivel_educativo ?? "secundario";
-      const valorHora = precioMap[nivel] ?? 0;
+      const vh = valorHoraTurno(t);
       const h = (t.slot?.duracion_minutos ?? 60) / 60;
-      horas += h; monto += h * valorHora;
+      horas += h; monto += h * vh;
     }
     return { horas, monto };
   }
@@ -111,7 +122,7 @@ export default function CobranzasClient({
                       <td className="px-3 py-2 text-[#9ca3af]">{t.anio}</td>
                       <td className="px-3 py-2 font-bold text-[#374151]">{((t.slot?.duracion_minutos??60)/60).toFixed(1)} hs</td>
                       <td className="px-3 py-2 font-extrabold text-[#059669]">
-                        {fmtMoney(((t.slot?.duracion_minutos??60)/60)*(precioMap[t.alumno?.nivel_educativo??"secundario"]??0))}
+                        {fmtMoney(((t.slot?.duracion_minutos??60)/60) * valorHoraTurno(t))}
                       </td>
                     </tr>
                   ))}

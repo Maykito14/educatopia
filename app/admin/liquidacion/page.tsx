@@ -5,7 +5,7 @@ export default async function LiquidacionPage() {
   const supabase = createServiceClient();
   const [profesoresRes, preciosRes] = await Promise.all([
     supabase.from("profesores").select("id, nombre").eq("activo",true).order("nombre"),
-    supabase.from("precios").select("nivel, valor_hora, porcentaje_profesor").order("nivel"),
+    supabase.from("precios").select("nivel, valor_hora, porcentaje_profesor, pack_semanal_precio, pack_mensual_precio").order("nivel"),
   ]);
   return (
     <div className="space-y-4">
@@ -15,7 +15,7 @@ export default async function LiquidacionPage() {
       </div>
       <LiquidacionClient
         profesores={profesoresRes.data ?? []}
-        precios={(preciosRes.data ?? []) as { nivel: string; valor_hora: number; porcentaje_profesor: number }[]}
+        precios={(preciosRes.data ?? []) as Parameters<typeof LiquidacionClient>[0]["precios"]}
       />
     </div>
   );

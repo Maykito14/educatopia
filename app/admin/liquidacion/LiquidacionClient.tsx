@@ -3,9 +3,13 @@
 import { useState, useTransition } from "react";
 import { marcarPagados } from "./actions";
 
-type Precio = { nivel: string; valor_hora: number; porcentaje_profesor: number };
+type Precio = {
+  nivel: string; valor_hora: number; porcentaje_profesor: number;
+  pack_semanal_precio: number | null; pack_mensual_precio: number | null;
+};
 type TurnoLiq = {
   id: string; materia: string; anio: string; colegio: string; pagado: boolean;
+  tipo_pedido: "suelto" | "pack_semanal" | "pack_mensual" | null;
   slot: { fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number } | null;
   alumno: { nombre: string; apellido: string; nivel_educativo: string | null } | null;
 };
@@ -50,12 +54,22 @@ export default function LiquidacionClient({
     setLoaded(true);
   }
 
+  function valorHoraTurno(t: TurnoLiq): number {
+    const nivel  = t.alumno?.nivel_educativo ?? "secundario";
+    const precio = precioMap[nivel] ?? precioMap["secundario"];
+    if (!precio) return 0;
+    if (t.tipo_pedido === "pack_semanal") return precio.pack_semanal_precio ?? precio.valor_hora;
+    if (t.tipo_pedido === "pack_mensual") return precio.pack_mensual_precio ?? precio.valor_hora;
+    return precio.valor_hora;
+  }
+
   function calcTurno(t: TurnoLiq) {
     const nivel   = t.alumno?.nivel_educativo ?? "secundario";
     const precio  = precioMap[nivel] ?? precioMap["secundario"];
     const horas   = (t.slot?.duracion_minutos ?? 60) / 60;
-    const monto   = horas * precio.valor_hora * (precio.porcentaje_profesor / 100);
-    return { horas, monto };
+    const vh      = valorHoraTurno(t);
+    const monto   = horas * vh * (precio?.porcentaje_profesor ?? 100) / 100;
+    return { horas, monto, vh };
   }
 
   const selectedList = turnos.filter(t => selected.has(t.id));
@@ -129,7 +143,11 @@ export default function LiquidacionClient({
                   {turnos.map(t=>{
                     const nivel  = t.alumno?.nivel_educativo ?? "secundario";
                     const precio = precioMap[nivel] ?? precioMap["secundario"];
-                    const {horas, monto} = calcTurno(t);
+                    const {horas, monto, vh} = calcTurno(t);
+                    const tipLabel: Record<string,string> = { suelto: "", pack_semanal: " (sem.)", pack_mensual: " (mens.)" };
+                    const packTag = t.tipo_pedido && t.tipo_pedido !== "suelto"
+                      ? <span className="ml-1 text-[9px] font-black px-1 py-0.5 bg-[#ede9fe] text-[#7c3aed] rounded">{tipLabel[t.tipo_pedido]?.trim()}</span>
+                      : null;
                     return (
                       <tr key={t.id} className={`border-b border-[#f9fafb] ${t.pagado?"opacity-50":""}`}>
                         <td className="px-4 py-2.5">
@@ -142,8 +160,10 @@ export default function LiquidacionClient({
                         <td className="px-3 py-2.5 text-xs font-semibold text-[#6b7280]">{t.materia}</td>
                         <td className="px-3 py-2.5 text-xs font-semibold text-[#6b7280] capitalize">{nivel}</td>
                         <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{horas.toFixed(1)} hs</td>
-                        <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{fmtMoney(precio.valor_hora)}</td>
-                        <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{precio.porcentaje_profesor}%</td>
+                        <td className="px-3 py-2.5 text-xs font-semibold text-[#374151] whitespace-nowrap">
+                          {fmtMoney(vh)}{packTag}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{precio?.porcentaje_profesor ?? "—"}%</td>
                         <td className="px-3 py-2.5 font-extrabold text-[#059669]">{fmtMoney(monto)}</td>
                         <td className="px-3 py-2.5">
                           {t.pagado

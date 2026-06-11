@@ -5,11 +5,11 @@ export default async function CobranzasPage() {
   const supabase = createServiceClient();
   const [turnosRes, preciosRes] = await Promise.all([
     supabase.from("turnos").select(`
-      id, materia, anio, cobrado,
+      id, materia, anio, cobrado, tipo_pedido,
       slot:slots(fecha, duracion_minutos),
       alumno:alumnos(id, nombre, apellido, nivel_educativo, telefono_contacto)
     `).eq("asistio",true).eq("cobrado",false).neq("estado","cancelado").order("created_at"),
-    supabase.from("precios").select("nivel, valor_hora"),
+    supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_mensual_precio"),
   ]);
 
   return (
@@ -20,7 +20,7 @@ export default async function CobranzasPage() {
       </div>
       <CobranzasClient
         turnos={(turnosRes.data??[]) as unknown as Parameters<typeof CobranzasClient>[0]["turnos"]}
-        precios={(preciosRes.data??[]) as {nivel:string;valor_hora:number}[]}
+        precios={(preciosRes.data??[]) as Parameters<typeof CobranzasClient>[0]["precios"]}
       />
     </div>
   );

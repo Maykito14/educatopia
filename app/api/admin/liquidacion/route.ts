@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const { data } = await supabase
     .from("turnos")
     .select(`
-      id, materia, anio, colegio, pagado,
+      id, materia, anio, colegio, pagado, tipo_pedido,
       slot:slots!inner(fecha, hora_inicio, hora_fin, duracion_minutos, profesor_id),
       alumno:alumnos(nombre, apellido, nivel_educativo)
     `)
