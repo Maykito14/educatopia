@@ -5,9 +5,9 @@ export default async function CobranzasPage() {
   const supabase = createServiceClient();
   const [turnosRes, preciosRes] = await Promise.all([
     supabase.from("turnos").select(`
-      id, materia, anio, cobrado, tipo_pedido,
+      id, materia, anio, cobrado, tipo_pedido, monto_cobrado,
       slot:slots(fecha, duracion_minutos),
-      alumno:alumnos(id, nombre, apellido, nivel_educativo, telefono_contacto)
+      alumno:alumnos(id, nombre, apellido, nivel_educativo, telefono_contacto, saldo_a_favor)
     `).eq("asistio",true).eq("cobrado",false).neq("estado","cancelado").order("created_at"),
     supabase.from("precios").select("nivel, valor_hora, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
   ]);
