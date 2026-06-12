@@ -287,14 +287,6 @@ function TurnoRow({ t, profesores, precios }: { t: TurnoEdit; profesores: {id:st
         </td>
         <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{profNombre}</td>
         <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{t.materia}<br/><span className="text-[#9ca3af]">{t.anio}</span></td>
-        {/* Estado */}
-        <td className="px-3 py-2.5">
-          <select value={t.estado} disabled={pending}
-            onChange={e=>update({estado:e.target.value})}
-            className="text-xs font-extrabold rounded-lg border border-[#e5e7eb] px-2 py-1 focus:border-[#7c3aed] outline-none bg-white">
-            {ESTADOS.map(s=><option key={s} value={s}>{s}</option>)}
-          </select>
-        </td>
         {/* Duración + Pack */}
         <td className="px-3 py-2.5">
           <div className="flex flex-col gap-1">
@@ -510,7 +502,7 @@ export default function TurnosAdminClient({
             <table className="w-full text-sm min-w-[1100px]">
               <thead>
                 <tr className="border-b border-[#f3f4f6]">
-                  {["Fecha","Alumno","Profesor","Materia","Estado","Dur. / Pack","Controles","Cobro","Registrado","Acciones"].map(h=>(
+                  {["Fecha","Alumno","Profesor","Materia","Dur. / Pack","Controles","Cobro","Registrado","Acciones"].map(h=>(
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-extrabold text-[#9ca3af] uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
