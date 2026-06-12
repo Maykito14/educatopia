@@ -152,11 +152,37 @@ export async function marcarAsistencia(turnoId: string, asistio: boolean) {
 
 export async function actualizarCobro(
   turnoId: string,
-  patch: { cobrado?: boolean; medio_cobro?: "efectivo" | "transferencia" | null }
+  patch: { cobrado?: boolean; medio_cobro?: "efectivo" | "transferencia" | null; monto_cobrado?: number | null }
 ) {
   const supabase = createServiceClient();
   await supabase.from("turnos").update(patch).eq("id", turnoId);
   revalidatePath("/profesor/turnos");
+}
+
+export async function registrarCobroProfesor(
+  turnoId: string,
+  montoCobrado: number,
+  costoTurno: number,
+  alumnoId: string
+) {
+  const supabase = createServiceClient();
+  const cobrado = montoCobrado >= costoTurno;
+  const excedente = montoCobrado - costoTurno;
+
+  await supabase
+    .from("turnos")
+    .update({ monto_cobrado: montoCobrado, cobrado })
+    .eq("id", turnoId);
+
+  if (excedente > 0) {
+    await supabase.rpc("incrementar_saldo_a_favor", {
+      p_alumno_id: alumnoId,
+      p_monto: excedente,
+    });
+  }
+
+  revalidatePath("/profesor/turnos");
+  revalidatePath("/profesor");
 }
 
 /** Devuelve todos los slots futuros con cupo disponible (todos los profesores), excluyendo el slot actual. */

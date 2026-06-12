@@ -62,17 +62,23 @@ function TurnoRow({
 }) {
   const montoYaPagado = t.monto_cobrado ?? 0;
   const restante = Math.max(0, costo - montoYaPagado);
-  const [input, setInput] = useState(String(Math.round(restante || costo)));
+  const [modo, setModo] = useState<"idle" | "parcial">("idle");
+  const [input, setInput] = useState("");
   const [pending, startTrans] = useTransition();
 
-  const monto = parseFloat(input.replace(",", ".")) || 0;
-  const esValido = monto > 0;
-  const excedente = monto - restante;
+  const montoParcial = parseFloat(input.replace(",", ".")) || 0;
+  const excedente = montoParcial - restante;
   const hayExcedente = restante > 0 && excedente > 0;
 
-  function handleCobrar() {
-    if (!esValido) return;
-    startTrans(() => onCobrar(montoYaPagado + monto));
+  function handleTotal() {
+    startTrans(() => onCobrar(costo));
+  }
+
+  function handleParcial() {
+    if (montoParcial <= 0) return;
+    startTrans(() => onCobrar(montoYaPagado + montoParcial));
+    setModo("idle");
+    setInput("");
   }
 
   return (
@@ -96,49 +102,58 @@ function TurnoRow({
         )}
       </td>
       <td className="px-3 py-2.5">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5">
-            <div className="relative">
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-[#9ca3af] font-bold pointer-events-none">$</span>
-              <input
-                type="number"
-                min={0}
-                step={100}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                className={`w-28 pl-5 pr-2 py-1.5 rounded-lg border-2 text-xs font-extrabold outline-none transition-colors ${
-                  hayExcedente
-                    ? "border-[#059669] text-[#059669] bg-[#f0fdf4]"
-                    : "border-[#e5e7eb] text-[#374151] focus:border-[#7c3aed]"
-                }`}
-              />
-            </div>
+        {modo === "idle" ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button type="button" disabled={pending}
+              onClick={handleTotal}
+              className="px-3 py-1.5 rounded-lg bg-[#059669] text-white text-xs font-black hover:bg-[#047857] transition-colors disabled:opacity-50 whitespace-nowrap">
+              ✓ Cobro Total
+            </button>
+            <button type="button" disabled={pending}
+              onClick={() => { setModo("parcial"); setInput(""); }}
+              className="px-3 py-1.5 rounded-lg border-2 border-[#7c3aed] text-[#7c3aed] bg-white text-xs font-black hover:bg-[#ede9fe] transition-colors disabled:opacity-50 whitespace-nowrap">
+              ◑ Cobro Parcial
+            </button>
             {saldoAlumno > 0 && restante > 0 && (
-              <button
-                type="button"
-                disabled={pending}
+              <button type="button" disabled={pending}
                 onClick={() => startTrans(() => onAplicarSaldo())}
                 className="px-2 py-1.5 rounded-lg border-2 border-[#059669] bg-[#f0fdf4] text-[#059669] text-[10px] font-black hover:bg-[#dcfce7] transition-colors disabled:opacity-50 whitespace-nowrap"
-                title={`Aplicar saldo a favor disponible: ${fmtMoney(saldoAlumno)}`}
-              >
+                title={`Aplicar saldo disponible: ${fmtMoney(saldoAlumno)}`}>
                 ✦ Usar saldo
               </button>
             )}
-            <button
-              type="button"
-              disabled={pending || !esValido}
-              onClick={handleCobrar}
-              className="px-3 py-1.5 rounded-lg bg-[#7c3aed] text-white text-xs font-black hover:bg-[#6d28d9] transition-colors disabled:opacity-50 whitespace-nowrap"
-            >
-              {pending ? "…" : "Cobrar"}
-            </button>
           </div>
-          {hayExcedente && (
-            <p className="text-[10px] font-semibold text-[#059669]">
-              ✦ Excedente {fmtMoney(excedente)} se suma al saldo a favor
-            </p>
-          )}
-        </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-[#9ca3af] font-bold pointer-events-none">$</span>
+                <input type="number" min={0} step={100} autoFocus
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  placeholder={String(Math.round(restante))}
+                  className={`w-28 pl-5 pr-2 py-1.5 rounded-lg border-2 text-xs font-extrabold outline-none transition-colors ${
+                    hayExcedente ? "border-[#059669] text-[#059669] bg-[#f0fdf4]" : "border-[#7c3aed] text-[#374151]"
+                  }`}
+                />
+              </div>
+              <button type="button" disabled={pending || montoParcial <= 0}
+                onClick={handleParcial}
+                className="px-3 py-1.5 rounded-lg bg-[#7c3aed] text-white text-xs font-black hover:bg-[#6d28d9] transition-colors disabled:opacity-50">
+                {pending ? "…" : "Confirmar"}
+              </button>
+              <button type="button" onClick={() => setModo("idle")}
+                className="text-[10px] font-semibold text-[#9ca3af] underline hover:text-[#374151]">
+                Cancelar
+              </button>
+            </div>
+            {hayExcedente && (
+              <p className="text-[10px] font-semibold text-[#059669]">
+                ✦ Excedente {fmtMoney(excedente)} → saldo a favor
+              </p>
+            )}
+          </div>
+        )}
       </td>
       <td className="px-3 py-2.5">
         <BadgeEstado montoCobrado={t.monto_cobrado} costo={costo} />

@@ -23,9 +23,9 @@ export default async function MisTurnosPage() {
       .from("turnos")
       .select(`
         id, alumno_id, materia, anio, colegio, objetivo, notas, estado, tipo_pedido,
-        confirmado_por_profesor, asistio, pagado, cobrado, medio_cobro,
+        confirmado_por_profesor, asistio, pagado, cobrado, medio_cobro, monto_cobrado,
         slot:slots(id, fecha, hora_inicio, hora_fin, duracion_minutos, profesor_id),
-        alumno:alumnos(nombre, apellido, edad, nivel_educativo, anio_grado, colegio, nombre_contacto, telefono_contacto)
+        alumno:alumnos(nombre, apellido, edad, nivel_educativo, anio_grado, colegio, saldo_a_favor, nombre_contacto, telefono_contacto)
       `)
       .neq("estado", "cancelado")
       .order("created_at", { ascending: false }),

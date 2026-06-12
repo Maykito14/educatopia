@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import {
-  confirmarTurno, marcarAsistencia, actualizarCobro,
+  confirmarTurno, marcarAsistencia, actualizarCobro, registrarCobroProfesor,
   obtenerSlotsDisponibles, reprogramarTurno,
   actualizarDatosTurno, actualizarDatosAlumno, eliminarTurno,
 } from "./actions";
@@ -30,13 +30,14 @@ type TurnoRow = {
   asistio: boolean | null;
   pagado: boolean;
   cobrado: boolean;
+  monto_cobrado: number | null;
   medio_cobro: "efectivo" | "transferencia" | null;
   estado: string;
   slot: { id: string; fecha: string; hora_inicio: string; hora_fin: string; duracion_minutos: number; profesor_id: string } | null;
   alumno: {
     nombre: string; apellido: string; edad: number | null;
     nivel_educativo: string | null; anio_grado: string | null;
-    colegio: string | null;
+    colegio: string | null; saldo_a_favor: number | null;
     nombre_contacto: string | null; telefono_contacto: string | null;
   } | null;
 };
@@ -443,6 +444,138 @@ function EditPanel({ turno, precios, onCerrar }: { turno: TurnoRow; precios: Pre
   );
 }
 
+/* ── CobroSection ────────────────────────────────────────────────────────── */
+
+function CobroSection({
+  turno, precios, pending, startTransition,
+}: {
+  turno: TurnoRow;
+  precios: PrecioRow[];
+  pending: boolean;
+  startTransition: (fn: () => void) => void;
+}) {
+  const [modo, setModo] = useState<"idle" | "parcial">("idle");
+  const costo = (() => {
+    const nivel = turno.alumno?.nivel_educativo ?? null;
+    const ph = calcularPrecioHora(turno.tipo_pedido ?? "suelto", nivel, precios);
+    return ph != null ? (turno.slot?.duracion_minutos ?? 60) / 60 * ph : null;
+  })();
+  const montoYaPagado = turno.monto_cobrado ?? 0;
+  const restante = costo != null ? Math.max(0, costo - montoYaPagado) : null;
+  const [inputParcial, setInputParcial] = useState("");
+  const saldo = turno.alumno?.saldo_a_favor ?? 0;
+
+  function handleTotal() {
+    if (costo == null) return;
+    startTransition(() =>
+      registrarCobroProfesor(turno.id, costo, costo, turno.alumno_id)
+    );
+  }
+
+  function handleParcial() {
+    const monto = parseFloat(inputParcial.replace(",", ".")) || 0;
+    if (monto <= 0 || costo == null) return;
+    startTransition(() =>
+      registrarCobroProfesor(turno.id, montoYaPagado + monto, costo, turno.alumno_id)
+    );
+    setModo("idle");
+    setInputParcial("");
+  }
+
+  return (
+    <div className="pt-2 border-t border-[#e5e7eb]">
+      <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-2">Cobro al alumno</p>
+
+      {/* Medio de cobro */}
+      <div className="mb-2">
+        <select value={turno.medio_cobro ?? ""} disabled={pending}
+          onChange={e => startTransition(() => actualizarCobro(turno.id, { medio_cobro: (e.target.value as "efectivo"|"transferencia") || null }))}
+          className={`text-xs font-extrabold rounded-lg border px-2 py-1.5 outline-none bg-white transition-colors ${
+            turno.medio_cobro === "efectivo"      ? "border-[#f59e0b] text-[#92400e]" :
+            turno.medio_cobro === "transferencia" ? "border-[#6366f1] text-[#4338ca]" :
+                                                    "border-[#e5e7eb] text-[#9ca3af]"}`}>
+          <option value="">— medio de cobro</option>
+          <option value="transferencia">🏦 Transferencia</option>
+          <option value="efectivo">💵 Efectivo</option>
+        </select>
+      </div>
+
+      {/* Info de costo y pagado */}
+      {costo != null && (
+        <p className="text-[10px] font-semibold text-[#9ca3af] mb-2">
+          Costo: <span className="font-extrabold text-[#374151]">{fmtPesos(costo)}</span>
+          {montoYaPagado > 0 && montoYaPagado < costo && (
+            <> · Pagado: <span className="text-[#4338ca] font-extrabold">{fmtPesos(montoYaPagado)}</span> · Resta: <span className="text-[#d97706] font-extrabold">{fmtPesos(restante ?? 0)}</span></>
+          )}
+          {saldo > 0 && <> · <span className="text-[#059669] font-extrabold">Saldo a favor: {fmtPesos(saldo)}</span></>}
+        </p>
+      )}
+
+      {/* Botones principales */}
+      {!turno.cobrado && modo === "idle" && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={pending || costo == null}
+            onClick={handleTotal}
+            className="px-3 py-1.5 rounded-xl bg-[#059669] text-white text-xs font-black hover:bg-[#047857] disabled:opacity-50 transition-colors">
+            ✓ Cobro Total{costo != null ? ` (${fmtPesos(costo)})` : ""}
+          </button>
+          <button type="button" disabled={pending}
+            onClick={() => { setModo("parcial"); setInputParcial(""); }}
+            className="px-3 py-1.5 rounded-xl border-2 border-[#7c3aed] text-[#7c3aed] bg-white text-xs font-black hover:bg-[#ede9fe] disabled:opacity-50 transition-colors">
+            ◑ Cobro Parcial
+          </button>
+        </div>
+      )}
+
+      {/* Panel cobro parcial */}
+      {!turno.cobrado && modo === "parcial" && (
+        <div className="flex flex-wrap items-end gap-2 mt-1">
+          <div>
+            <label className="block text-[10px] font-extrabold text-[#9ca3af] mb-1">Importe cobrado</label>
+            <div className="relative">
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-[#9ca3af] font-bold pointer-events-none">$</span>
+              <input
+                type="number" min={0} step={100} autoFocus
+                value={inputParcial}
+                onChange={e => setInputParcial(e.target.value)}
+                placeholder={String(Math.round(restante ?? costo ?? 0))}
+                className="w-32 pl-5 pr-2 py-1.5 rounded-lg border-2 border-[#7c3aed] text-xs font-extrabold outline-none bg-white"
+              />
+            </div>
+            {(() => {
+              const m = parseFloat(inputParcial.replace(",", ".")) || 0;
+              const exc = costo != null ? m - (restante ?? costo) : 0;
+              if (exc > 0) return <p className="text-[10px] font-semibold text-[#059669] mt-0.5">✦ Excedente {fmtPesos(exc)} → saldo a favor</p>;
+              return null;
+            })()}
+          </div>
+          <button type="button" disabled={pending || !(parseFloat(inputParcial.replace(",",".")) > 0)}
+            onClick={handleParcial}
+            className="px-3 py-1.5 rounded-xl bg-[#7c3aed] text-white text-xs font-black hover:bg-[#6d28d9] disabled:opacity-50 transition-colors">
+            {pending ? "…" : "Confirmar"}
+          </button>
+          <button type="button" onClick={() => setModo("idle")}
+            className="px-3 py-1.5 rounded-xl bg-[#f3f4f6] text-[#9ca3af] text-xs font-black hover:bg-[#e5e7eb] transition-colors">
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {/* Ya cobrado */}
+      {turno.cobrado && (
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-[#d1fae5] text-[#059669]">✓ Cobrado</span>
+          <button type="button" disabled={pending}
+            onClick={() => startTransition(() => actualizarCobro(turno.id, { cobrado: false, monto_cobrado: null }))}
+            className="text-[10px] font-semibold text-[#9ca3af] underline hover:text-[#374151] transition-colors">
+            Deshacer
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── TurnoCard ───────────────────────────────────────────────────────────── */
 
 function TurnoCard({ turno, precios }: { turno: TurnoRow; precios: PrecioRow[] }) {
@@ -533,27 +666,7 @@ function TurnoCard({ turno, precios }: { turno: TurnoRow; precios: PrecioRow[] }
           </div>
 
           {/* Cobro */}
-          <div className="pt-2 border-t border-[#e5e7eb]">
-            <p className="text-[10px] font-extrabold text-[#9ca3af] uppercase tracking-wide mb-2">Cobro al alumno</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={turno.medio_cobro ?? ""} disabled={pending}
-                onChange={e => startTransition(() => actualizarCobro(turno.id, { medio_cobro: (e.target.value as "efectivo"|"transferencia") || null }))}
-                className={`text-xs font-extrabold rounded-lg border px-2 py-1.5 outline-none bg-white transition-colors ${
-                  turno.medio_cobro === "efectivo"      ? "border-[#f59e0b] text-[#92400e]" :
-                  turno.medio_cobro === "transferencia" ? "border-[#6366f1] text-[#4338ca]" :
-                                                          "border-[#e5e7eb] text-[#9ca3af]"}`}>
-                <option value="">— medio de cobro</option>
-                <option value="transferencia">🏦 Transferencia</option>
-                <option value="efectivo">💵 Efectivo</option>
-              </select>
-              <button type="button" disabled={pending}
-                onClick={() => startTransition(() => actualizarCobro(turno.id, { cobrado: !turno.cobrado }))}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black disabled:opacity-50 transition-colors ${
-                  turno.cobrado ? "bg-[#d1fae5] text-[#059669] hover:bg-[#a7f3d0]" : "bg-[#fef3c7] text-[#d97706] hover:bg-[#fde68a]"}`}>
-                {turno.cobrado ? "✓ Cobrado" : "⏳ Sin cobrar"}
-              </button>
-            </div>
-          </div>
+          <CobroSection turno={turno} precios={precios} pending={pending} startTransition={startTransition} />
 
           {/* Editar datos */}
           <div className="pt-2 border-t border-[#e5e7eb]">
