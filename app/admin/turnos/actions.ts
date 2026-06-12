@@ -26,13 +26,56 @@ export async function actualizarTurno(id: string, patch: {
   tipo_pedido?: "suelto" | "pack_semanal" | "pack_mensual";
 }) {
   const supabase = createServiceClient();
-  // Si cambia duracion, actualizar el slot también
+
+  // Si cambia duracion: buscar/crear el slot destino y mover el turno.
+  // No se puede hacer UPDATE de duracion_minutos in-place porque hay un
+  // unique constraint (profesor_id, fecha, hora_inicio, duracion_minutos),
+  // y en general ya existe otro slot con la misma hora pero distinta duración.
   if (patch.duracion_minutos !== undefined) {
-    const { data: turno } = await supabase.from("turnos").select("slot_id").eq("id",id).single<{slot_id:string}>();
-    if (turno) {
-      await supabase.from("slots").update({ duracion_minutos: patch.duracion_minutos }).eq("id", turno.slot_id);
+    type SlotRow = { slot_id: string };
+    type FullSlot = { id: string; profesor_id: string; fecha: string; hora_inicio: string; capacidad_max: number };
+    const { data: turnoRow } = await supabase
+      .from("turnos").select("slot_id").eq("id", id).single<SlotRow>();
+
+    if (turnoRow) {
+      const { data: slotActual } = await supabase
+        .from("slots")
+        .select("id, profesor_id, fecha, hora_inicio, capacidad_max")
+        .eq("id", turnoRow.slot_id)
+        .single<FullSlot>();
+
+      if (slotActual) {
+        const dur = patch.duracion_minutos;
+        const [h, m] = slotActual.hora_inicio.slice(0, 5).split(":").map(Number);
+        const finMin = h * 60 + m + dur;
+        const horaFin = `${String(Math.floor(finMin / 60)).padStart(2, "0")}:${String(finMin % 60).padStart(2, "0")}`;
+
+        const { data: slotDestino } = await supabase
+          .from("slots")
+          .upsert(
+            {
+              profesor_id: slotActual.profesor_id,
+              fecha: slotActual.fecha,
+              hora_inicio: slotActual.hora_inicio,
+              hora_fin: horaFin,
+              duracion_minutos: dur,
+              capacidad_max: slotActual.capacidad_max,
+              estado: "disponible",
+            },
+            { onConflict: "profesor_id,fecha,hora_inicio,duracion_minutos" }
+          )
+          .select("id")
+          .single<{ id: string }>();
+
+        if (slotDestino) {
+          await supabase.from("turnos").update({ slot_id: slotDestino.id }).eq("id", id);
+          await sincronizarEstadoSlot(supabase, turnoRow.slot_id);
+          await sincronizarEstadoSlot(supabase, slotDestino.id);
+        }
+      }
     }
   }
+
   const { duracion_minutos: _, ...turnoFields } = patch;
   if (Object.keys(turnoFields).length > 0) {
     await supabase.from("turnos").update(turnoFields).eq("id", id);
