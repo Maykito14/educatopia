@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import {
-  confirmarTurno, marcarAsistencia, actualizarCobro, registrarCobroProfesor,
+  confirmarTurno, marcarAsistencia, actualizarCobro, registrarCobroProfesor, aplicarSaldoProfesor,
   obtenerSlotsDisponibles, reprogramarTurno,
   actualizarDatosTurno, actualizarDatosAlumno, eliminarTurno,
 } from "./actions";
@@ -524,6 +524,15 @@ function CobroSection({
             className="px-3 py-1.5 rounded-xl border-2 border-[#7c3aed] text-[#7c3aed] bg-white text-xs font-black hover:bg-[#ede9fe] disabled:opacity-50 transition-colors">
             ◑ Cobro Parcial
           </button>
+          {saldo > 0 && costo != null && restante != null && restante > 0 && (
+            <button type="button" disabled={pending}
+              onClick={() => startTransition(() =>
+                aplicarSaldoProfesor(turno.alumno_id, turno.id, saldo, costo, montoYaPagado)
+              )}
+              className="px-3 py-1.5 rounded-xl border-2 border-[#059669] bg-[#f0fdf4] text-[#059669] text-xs font-black hover:bg-[#dcfce7] disabled:opacity-50 transition-colors">
+              ✦ Aplicar saldo ({fmtPesos(Math.min(saldo, restante))})
+            </button>
+          )}
         </div>
       )}
 

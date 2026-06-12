@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { registrarCobro, aplicarSaldoAFavor } from "./actions";
+import { registrarCobro, aplicarSaldoAFavor, marcarCobrados } from "./actions";
 
 type Precio = {
   nivel: string; valor_hora: number;
@@ -162,9 +162,38 @@ function TurnoRow({
   );
 }
 
+type SaldoRow = { id: string; nombre: string; apellido: string; saldo_a_favor: number };
+
+function SaldosAFavorSection({ saldos }: { saldos: SaldoRow[] }) {
+  if (saldos.length === 0) return null;
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "0 2px 12px rgba(124,58,237,0.07)" }}>
+      <div className="px-5 py-3 bg-[#f0fdf4] border-b border-[#bbf7d0] flex items-center gap-2">
+        <span className="text-base">✦</span>
+        <div>
+          <p className="font-extrabold text-[#059669] text-sm">Saldos a favor</p>
+          <p className="text-xs text-[#6b7280] font-semibold">
+            Crédito acumulado disponible para aplicar en el próximo turno de cada alumno.
+          </p>
+        </div>
+      </div>
+      <ul className="divide-y divide-[#f3f4f6]">
+        {saldos.map(s => (
+          <li key={s.id} className="px-5 py-3 flex items-center justify-between">
+            <p className="font-extrabold text-[#1e1b4b] text-sm">{s.apellido}, {s.nombre}</p>
+            <span className="text-sm font-black text-[#059669] bg-[#d1fae5] px-3 py-1 rounded-full">
+              {fmtMoney(s.saldo_a_favor)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function CobranzasClient({
-  turnos, precios,
-}: { turnos: TurnoCob[]; precios: Precio[] }) {
+  turnos, precios, saldos,
+}: { turnos: TurnoCob[]; precios: Precio[]; saldos: SaldoRow[] }) {
   const precioMap: Record<string, Precio> = {};
   precios.forEach(p => { precioMap[p.nivel] = p; });
 
@@ -180,7 +209,7 @@ export default function CobranzasClient({
     return acc + costo - (t.monto_cobrado ?? 0);
   }, 0);
 
-  if (turnos.length === 0) {
+  if (turnos.length === 0 && saldos.length === 0) {
     return (
       <div className="text-center py-16 text-[#9ca3af] font-bold bg-white rounded-2xl" style={{ boxShadow: "0 2px 12px rgba(124,58,237,0.07)" }}>
         Sin cobros pendientes. ¡Todo al día! 🎉
@@ -191,6 +220,7 @@ export default function CobranzasClient({
   return (
     <div className="space-y-4">
       {/* Resumen global */}
+      {turnos.length > 0 && (
       <div className="bg-[#f5f3ff] rounded-2xl p-4">
         <p className="text-xs font-extrabold text-[#9ca3af]">Total pendiente de cobrar</p>
         <p className="text-2xl font-black text-[#7c3aed]">{fmtMoney(totalPendiente)}</p>
@@ -198,6 +228,10 @@ export default function CobranzasClient({
           Podés registrar cobros totales, parciales o con excedente (saldo a favor).
         </p>
       </div>
+      )}
+
+      {/* Saldos a favor */}
+      <SaldosAFavorSection saldos={saldos} />
 
       {Object.entries(grupos).map(([key, { alumno, turnos: gTurnos }]) => {
         const saldo = alumno?.saldo_a_favor ?? 0;

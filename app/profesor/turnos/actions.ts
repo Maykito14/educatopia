@@ -159,6 +159,27 @@ export async function actualizarCobro(
   revalidatePath("/profesor/turnos");
 }
 
+export async function aplicarSaldoProfesor(
+  alumnoId: string,
+  turnoId: string,
+  saldoDisponible: number,
+  costoTurno: number,
+  montoYaCobrado: number
+) {
+  const supabase = createServiceClient();
+  const restante = costoTurno - montoYaCobrado;
+  const aAplicar = Math.min(saldoDisponible, restante);
+  if (aAplicar <= 0) return;
+  const nuevoMonto = montoYaCobrado + aAplicar;
+  const cobrado = nuevoMonto >= costoTurno;
+  await Promise.all([
+    supabase.from("turnos").update({ monto_cobrado: nuevoMonto, cobrado }).eq("id", turnoId),
+    supabase.rpc("incrementar_saldo_a_favor", { p_alumno_id: alumnoId, p_monto: -aAplicar }),
+  ]);
+  revalidatePath("/profesor/turnos");
+  revalidatePath("/profesor");
+}
+
 export async function registrarCobroProfesor(
   turnoId: string,
   montoCobrado: number,
