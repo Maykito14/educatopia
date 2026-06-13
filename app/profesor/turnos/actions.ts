@@ -190,11 +190,13 @@ export async function registrarCobroProfesor(
 ) {
   const supabase = createServiceClient();
   const cobrado = montoCobrado >= costoTurno;
-  const excedente = montoCobrado - costoTurno;
+  const excedente = Math.max(0, montoCobrado - costoTurno);
+  // monto_cobrado nunca supera el costo del turno; el excedente va al saldo
+  const montoAplicado = Math.min(montoCobrado, costoTurno);
 
   await supabase
     .from("turnos")
-    .update({ monto_cobrado: montoCobrado, cobrado })
+    .update({ monto_cobrado: montoAplicado, cobrado })
     .eq("id", turnoId);
 
   if (excedente > 0) {
