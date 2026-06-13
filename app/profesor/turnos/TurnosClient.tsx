@@ -455,15 +455,21 @@ function CobroSection({
   startTransition: (fn: () => void) => void;
 }) {
   const [modo, setModo] = useState<"idle" | "parcial">("idle");
-  const costo = (() => {
-    const nivel = turno.alumno?.nivel_educativo ?? null;
-    const ph = calcularPrecioHora(turno.tipo_pedido ?? "suelto", nivel, precios);
-    return ph != null ? (turno.slot?.duracion_minutos ?? 60) / 60 * ph : null;
-  })();
+
+  // Calcula el costo del turno; si nivel es nulo usa "secundario" como fallback
+  const ph = calcularPrecioHora(
+    turno.tipo_pedido ?? "suelto",
+    turno.alumno?.nivel_educativo ?? null,
+    precios,
+  );
+  const costo = ph != null ? (turno.slot?.duracion_minutos ?? 60) / 60 * ph : null;
   const montoYaPagado = turno.monto_cobrado ?? 0;
   const restante = costo != null ? Math.max(0, costo - montoYaPagado) : null;
   const [inputParcial, setInputParcial] = useState("");
-  const saldo = turno.alumno?.saldo_a_favor ?? 0;
+
+  // saldo_a_favor viene directamente del alumno, independiente del costo
+  const saldo = Number(turno.alumno?.saldo_a_favor ?? 0);
+  const aAplicar = costo != null && restante != null ? Math.min(saldo, restante) : 0;
 
   function handleTotal() {
     if (costo == null) return;
@@ -500,16 +506,21 @@ function CobroSection({
         </select>
       </div>
 
-      {/* Info de costo y pagado */}
-      {costo != null && (
-        <p className="text-[10px] font-semibold text-[#9ca3af] mb-2">
-          Costo: <span className="font-extrabold text-[#374151]">{fmtPesos(costo)}</span>
-          {montoYaPagado > 0 && montoYaPagado < costo && (
-            <> · Pagado: <span className="text-[#4338ca] font-extrabold">{fmtPesos(montoYaPagado)}</span> · Resta: <span className="text-[#d97706] font-extrabold">{fmtPesos(restante ?? 0)}</span></>
-          )}
-          {saldo > 0 && <> · <span className="text-[#059669] font-extrabold">Saldo a favor: {fmtPesos(saldo)}</span></>}
-        </p>
-      )}
+      {/* Info de costo, pagos parciales y saldo a favor */}
+      <div className="text-[10px] font-semibold text-[#9ca3af] mb-2 space-y-0.5">
+        {costo != null && (
+          <p>
+            Costo: <span className="font-extrabold text-[#374151]">{fmtPesos(costo)}</span>
+            {montoYaPagado > 0 && montoYaPagado < costo && (
+              <> · Pagado: <span className="text-[#4338ca] font-extrabold">{fmtPesos(montoYaPagado)}</span> · Resta: <span className="text-[#d97706] font-extrabold">{fmtPesos(restante ?? 0)}</span></>
+            )}
+          </p>
+        )}
+        {/* Saldo a favor siempre visible cuando existe */}
+        {saldo > 0 && (
+          <p className="font-extrabold text-[#059669]">✦ Saldo a favor disponible: {fmtPesos(saldo)}</p>
+        )}
+      </div>
 
       {/* Botones principales */}
       {!turno.cobrado && modo === "idle" && (
@@ -524,13 +535,13 @@ function CobroSection({
             className="px-3 py-1.5 rounded-xl border-2 border-[#7c3aed] text-[#7c3aed] bg-white text-xs font-black hover:bg-[#ede9fe] disabled:opacity-50 transition-colors">
             ◑ Cobro Parcial
           </button>
-          {saldo > 0 && costo != null && restante != null && restante > 0 && (
+          {saldo > 0 && costo != null && aAplicar > 0 && (
             <button type="button" disabled={pending}
               onClick={() => startTransition(() =>
                 aplicarSaldoProfesor(turno.alumno_id, turno.id, saldo, costo, montoYaPagado)
               )}
               className="px-3 py-1.5 rounded-xl border-2 border-[#059669] bg-[#f0fdf4] text-[#059669] text-xs font-black hover:bg-[#dcfce7] disabled:opacity-50 transition-colors">
-              ✦ Aplicar saldo ({fmtPesos(Math.min(saldo, restante))})
+              ✦ Aplicar saldo ({fmtPesos(aAplicar)})
             </button>
           )}
         </div>
@@ -631,6 +642,11 @@ function TurnoCard({ turno, precios }: { turno: TurnoRow; precios: PrecioRow[] }
             <Badge ok={turno.asistio} labelOk="Asistió" labelNo="No asistió" />
             {turno.pagado   && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#e0f2fe] text-[#0284c7]">Pagado</span>}
             {turno.cobrado  && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#f0fdf4] text-[#15803d]">Cobrado</span>}
+            {Number(alumno?.saldo_a_favor ?? 0) > 0 && !turno.cobrado && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#d1fae5] text-[#059669]">
+                ✦ Saldo: {fmtPesos(Number(alumno!.saldo_a_favor!))}
+              </span>
+            )}
           </div>
         </div>
         <span className="text-[#9ca3af] text-xs mt-1 flex-shrink-0">{open ? "▲" : "▼"}</span>
