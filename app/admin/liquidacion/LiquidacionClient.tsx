@@ -30,7 +30,7 @@ function fmtMoney(n: number) {
 export default function LiquidacionClient({
   profesores, precios,
 }: {
-  profesores: { id: string; nombre: string }[];
+  profesores: { id: string; nombre: string; porcentaje_liquidacion: number }[];
   precios: Precio[];
 }) {
   const [profId, setProfId]     = useState(profesores[0]?.id ?? "");
@@ -68,12 +68,13 @@ export default function LiquidacionClient({
     return p.valor_hora;
   }
 
+  const profActual = profesores.find(p => p.id === profId);
+  const pctProfesor = profActual?.porcentaje_liquidacion ?? 50;
+
   function calcTurno(t: TurnoLiq) {
-    const nivel   = t.alumno?.nivel_educativo ?? "secundario";
-    const precio  = precioMap[nivel] ?? precioMap["secundario"];
-    const horas   = (t.slot?.duracion_minutos ?? 60) / 60;
-    const vh      = valorHoraTurno(t);
-    const monto   = horas * vh * (precio?.porcentaje_profesor ?? 100) / 100;
+    const horas = (t.slot?.duracion_minutos ?? 60) / 60;
+    const vh    = valorHoraTurno(t);
+    const monto = horas * vh * pctProfesor / 100;
     return { horas, monto, vh };
   }
 
@@ -146,8 +147,7 @@ export default function LiquidacionClient({
                 </thead>
                 <tbody>
                   {turnos.map(t=>{
-                    const nivel  = t.alumno?.nivel_educativo ?? "secundario";
-                    const precio = precioMap[nivel] ?? precioMap["secundario"];
+                    const nivel = t.alumno?.nivel_educativo ?? "secundario";
                     const {horas, monto, vh} = calcTurno(t);
                     const tipLabel: Record<string,string> = { suelto: "", pack_semanal: " (sem.)", pack_mensual: " (mens.)" };
                     const packTag = t.tipo_pedido && t.tipo_pedido !== "suelto"
@@ -171,7 +171,7 @@ export default function LiquidacionClient({
                         <td className="px-3 py-2.5 font-extrabold text-[#1e1b4b] whitespace-nowrap">
                           {fmtMoney(vh * horas)}
                         </td>
-                        <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{precio?.porcentaje_profesor ?? "—"}%</td>
+                        <td className="px-3 py-2.5 text-xs font-semibold text-[#374151]">{pctProfesor}%</td>
                         <td className="px-3 py-2.5 font-extrabold text-[#059669]">{fmtMoney(monto)}</td>
                         <td className="px-3 py-2.5">
                           {t.pagado

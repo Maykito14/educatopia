@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Precio = {
-  nivel: string; valor_hora: number; porcentaje_profesor: number;
+  nivel: string; valor_hora: number;
   pack_semanal_precio: number | null; pack_semanal_horas: number | null;
   pack_mensual_precio: number | null; pack_mensual_horas: number | null;
 };
@@ -54,10 +54,10 @@ function valorHoraEfectiva(t: TurnoLiq, p: Precio): number {
   return p.valor_hora;
 }
 
-function TurnoRow({ t, precio }: { t: TurnoLiq; precio: Precio }) {
+function TurnoRow({ t, precio, porcentaje }: { t: TurnoLiq; precio: Precio; porcentaje: number }) {
   const horas = (t.slot?.duracion_minutos ?? 60) / 60;
   const vh    = valorHoraEfectiva(t, precio);
-  const monto = horas * vh * (precio.porcentaje_profesor / 100);
+  const monto = horas * vh * porcentaje / 100;
 
   return (
     <tr className="border-b border-[#f9fafb]">
@@ -81,7 +81,7 @@ function TurnoRow({ t, precio }: { t: TurnoLiq; precio: Precio }) {
       <td className="px-3 py-2.5 font-black text-[#059669] text-right">
         {fmtMoney(monto)}
         <br />
-        <span className="text-[9px] font-semibold text-[#9ca3af]">{precio.porcentaje_profesor}% de {fmtMoney(vh)}/h</span>
+        <span className="text-[9px] font-semibold text-[#9ca3af]">{porcentaje}% de {fmtMoney(vh)}/h</span>
       </td>
       <td className="px-3 py-2.5 text-center">
         {t.pagado
@@ -94,9 +94,11 @@ function TurnoRow({ t, precio }: { t: TurnoLiq; precio: Precio }) {
 
 export default function LiquidacionProfesorClient({
   profesorId,
+  porcentajeLiquidacion,
   precios,
 }: {
   profesorId: string;
+  porcentajeLiquidacion: number;
   precios: Precio[];
 }) {
   const [semana, setSemana] = useState(() =>
@@ -110,7 +112,7 @@ export default function LiquidacionProfesorClient({
   precios.forEach(p => { precioMap[p.nivel] = p; });
 
   function getPrecio(nivel: string | null) {
-    return precioMap[nivel ?? "secundario"] ?? precioMap["secundario"] ?? { valor_hora: 0, porcentaje_profesor: 50, nivel: "secundario" };
+    return precioMap[nivel ?? "secundario"] ?? precioMap["secundario"] ?? { valor_hora: 0, nivel: "secundario" };
   }
 
   async function buscar(sem: string) {
@@ -133,7 +135,7 @@ export default function LiquidacionProfesorClient({
   function calcMonto(t: TurnoLiq) {
     const p = getPrecio(t.alumno?.nivel_educativo ?? null);
     const vh = valorHoraEfectiva(t, p);
-    return (t.slot?.duracion_minutos ?? 60) / 60 * vh * (p.porcentaje_profesor / 100);
+    return (t.slot?.duracion_minutos ?? 60) / 60 * vh * porcentajeLiquidacion / 100;
   }
 
   const totalHoras = turnos.reduce((acc, t) => acc + (t.slot?.duracion_minutos ?? 60) / 60, 0);
@@ -205,6 +207,7 @@ export default function LiquidacionProfesorClient({
                         key={t.id}
                         t={t}
                         precio={getPrecio(t.alumno?.nivel_educativo ?? null)}
+                        porcentaje={porcentajeLiquidacion}
                       />
                     ))}
                   </tbody>

@@ -13,12 +13,12 @@ export default async function LiquidacionProfesorPage() {
   const [profesorRes, preciosRes] = await Promise.all([
     service
       .from("profesores")
-      .select("id")
+      .select("id, porcentaje_liquidacion")
       .eq("profile_id", user.id)
-      .single<{ id: string }>(),
+      .single<{ id: string; porcentaje_liquidacion: number }>(),
     service
       .from("precios")
-      .select("nivel, valor_hora, porcentaje_profesor, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
+      .select("nivel, valor_hora, pack_semanal_precio, pack_semanal_horas, pack_mensual_precio, pack_mensual_horas"),
   ]);
 
   if (!profesorRes.data) redirect("/profesor");
@@ -33,6 +33,7 @@ export default async function LiquidacionProfesorPage() {
       </div>
       <LiquidacionProfesorClient
         profesorId={profesorRes.data.id}
+        porcentajeLiquidacion={profesorRes.data.porcentaje_liquidacion ?? 50}
         precios={(preciosRes.data ?? []) as Parameters<typeof LiquidacionProfesorClient>[0]["precios"]}
       />
     </div>
