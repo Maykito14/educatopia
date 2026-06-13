@@ -5,6 +5,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 function revalidate() {
   revalidatePath("/admin/cobranzas");
   revalidatePath("/admin");
+  revalidatePath("/profesor/turnos");
+  revalidatePath("/profesor");
 }
 
 /**

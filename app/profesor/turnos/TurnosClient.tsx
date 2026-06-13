@@ -47,8 +47,8 @@ function calcularPrecioHora(
   nivel: string | null,
   precios: PrecioRow[]
 ): number | null {
-  if (!nivel) return null;
-  const p = precios.find(pr => pr.nivel === nivel);
+  const p = precios.find(pr => pr.nivel === (nivel ?? "secundario"))
+         ?? precios.find(pr => pr.nivel === "secundario");
   if (!p) return null;
   if (tipo === "pack_semanal" && p.pack_semanal_precio && p.pack_semanal_horas) {
     return p.pack_semanal_precio / p.pack_semanal_horas;

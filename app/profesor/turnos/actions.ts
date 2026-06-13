@@ -178,6 +178,8 @@ export async function aplicarSaldoProfesor(
   ]);
   revalidatePath("/profesor/turnos");
   revalidatePath("/profesor");
+  revalidatePath("/admin/cobranzas");
+  revalidatePath("/admin");
 }
 
 export async function registrarCobroProfesor(
@@ -204,6 +206,8 @@ export async function registrarCobroProfesor(
 
   revalidatePath("/profesor/turnos");
   revalidatePath("/profesor");
+  revalidatePath("/admin/cobranzas");
+  revalidatePath("/admin");
 }
 
 /** Devuelve todos los slots futuros con cupo disponible (todos los profesores), excluyendo el slot actual. */
