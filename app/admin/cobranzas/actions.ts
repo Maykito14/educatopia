@@ -73,6 +73,15 @@ export async function aplicarSaldoAFavor(
   revalidate();
 }
 
+/** Elimina (pone a cero) el saldo a favor de un alumno. */
+export async function eliminarSaldoAFavor(alumnoId: string) {
+  await createServiceClient()
+    .from("alumnos")
+    .update({ saldo_a_favor: 0 })
+    .eq("id", alumnoId);
+  revalidate();
+}
+
 /** Marca múltiples turnos como cobrados al 100% (sin registrar monto exacto). */
 export async function marcarCobrados(turnoIds: string[]) {
   if (turnoIds.length === 0) return;

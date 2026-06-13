@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { registrarCobro, aplicarSaldoAFavor, marcarCobrados } from "./actions";
+import { registrarCobro, aplicarSaldoAFavor, marcarCobrados, eliminarSaldoAFavor } from "./actions";
 
 type Precio = {
   nivel: string; valor_hora: number;
@@ -164,6 +164,58 @@ function TurnoRow({
 
 type SaldoRow = { id: string; nombre: string; apellido: string; saldo_a_favor: number };
 
+function SaldoItem({ s }: { s: SaldoRow }) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, startTrans] = useTransition();
+
+  function handleEliminar() {
+    startTrans(async () => {
+      await eliminarSaldoAFavor(s.id);
+      setConfirming(false);
+    });
+  }
+
+  return (
+    <li className="px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <p className="font-extrabold text-[#1e1b4b] text-sm">{s.apellido}, {s.nombre}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm font-black text-[#059669] bg-[#d1fae5] px-3 py-1 rounded-full">
+          {fmtMoney(s.saldo_a_favor)}
+        </span>
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="text-[10px] font-black px-2.5 py-1 rounded-lg border-2 border-[#fee2e2] text-[#ef4444] bg-white hover:bg-[#fee2e2] transition-colors"
+          >
+            Eliminar
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-[#6b7280]">¿Confirmar?</span>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={handleEliminar}
+              className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-[#ef4444] text-white hover:bg-[#dc2626] disabled:opacity-50 transition-colors"
+            >
+              {pending ? "…" : "Sí, eliminar"}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setConfirming(false)}
+              className="text-[10px] font-semibold text-[#9ca3af] underline hover:text-[#374151]"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function SaldosAFavorSection({ saldos }: { saldos: SaldoRow[] }) {
   if (saldos.length === 0) return null;
   return (
@@ -178,14 +230,7 @@ function SaldosAFavorSection({ saldos }: { saldos: SaldoRow[] }) {
         </div>
       </div>
       <ul className="divide-y divide-[#f3f4f6]">
-        {saldos.map(s => (
-          <li key={s.id} className="px-5 py-3 flex items-center justify-between">
-            <p className="font-extrabold text-[#1e1b4b] text-sm">{s.apellido}, {s.nombre}</p>
-            <span className="text-sm font-black text-[#059669] bg-[#d1fae5] px-3 py-1 rounded-full">
-              {fmtMoney(s.saldo_a_favor)}
-            </span>
-          </li>
-        ))}
+        {saldos.map(s => <SaldoItem key={s.id} s={s} />)}
       </ul>
     </div>
   );
