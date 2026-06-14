@@ -188,6 +188,7 @@ export async function registrarCobroProfesor(
   costoTurno: number,
   alumnoId: string
 ) {
+  if (costoTurno <= 0) return;
   const supabase = createServiceClient();
   const cobrado = montoCobrado >= costoTurno;
   const excedente = Math.max(0, montoCobrado - costoTurno);

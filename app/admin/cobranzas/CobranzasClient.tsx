@@ -102,7 +102,11 @@ function TurnoRow({
         )}
       </td>
       <td className="px-3 py-2.5">
-        {modo === "idle" ? (
+        {costo === 0 ? (
+          <span className="text-xs text-danger font-semibold">
+            ⚠ Precio no encontrado — verificá el nivel educativo del alumno
+          </span>
+        ) : modo === "idle" ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <button type="button" disabled={pending}
               onClick={handleTotal}
